@@ -406,7 +406,7 @@ export default function BlastRadiusPage() {
               borderRadius: 'var(--radius-sm)',
               background: `${impactColor}18`, border: `1px solid ${impactColor}35`,
               color: impactColor,
-            }}>
+            }} title={blast.summary.risk_families?.join(', ')}>
               {impact} IMPACT
             </span>
           </div>
@@ -528,7 +528,7 @@ export default function BlastRadiusPage() {
                   padding: '8px 10px', borderRadius: 'var(--radius-md)',
                   background: `${impactColor}10`, border: `1px solid ${impactColor}25`,
                   marginBottom: 10,
-                }}>
+                }} title={blast.summary.risk_families?.join(', ')}>
                   <div style={{ fontSize: '0.5625rem', color: impactColor, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                     Potential Impact
                   </div>

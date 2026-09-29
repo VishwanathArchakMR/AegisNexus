@@ -148,7 +148,7 @@ export default function FindingDetailPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Severity</div>
-                <ImpactBadge level={data.severity} />
+                <ImpactBadge level={data.severity} riskFamilies={data.risk_families} />
               </div>
               
               <div>

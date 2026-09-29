@@ -146,6 +146,7 @@ export interface BlastRadiusSummary {
   total_capabilities: number
   propagation_depth: number
   potential_impact: ImpactLevel
+  risk_families?: string[]
   impact_factors: string[]
 }
 
@@ -234,6 +235,7 @@ export interface AgentFindingSummary {
   description: string
   finding_type: string
   severity: ImpactLevel
+  risk_families?: string[]
   status: 'OPEN' | 'RESOLVED' | 'IGNORED'
   evidence: string
   affected_capability: string | null

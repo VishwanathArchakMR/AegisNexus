@@ -88,7 +88,7 @@ export default function FindingsPage() {
                         <span style={{ fontWeight: 500 }}>{finding.title}</span>
                       </div>
                     </td>
-                    <td><ImpactBadge level={finding.severity} /></td>
+                    <td><ImpactBadge level={finding.severity} riskFamilies={finding.risk_families} /></td>
                     <td>
                       <span style={{
                         padding: '2px 6px', borderRadius: 4, fontSize: '0.6875rem', fontWeight: 600,

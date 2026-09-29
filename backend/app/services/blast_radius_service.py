@@ -56,6 +56,48 @@ _TRUST_WEIGHT: dict[str, int] = {
 }
 
 
+def derive_capability_risk_families(cap: AgentCapability) -> set[str]:
+    """
+    Map a capability to SoK risk families.
+    
+    Risk families are from the SoK paper (https://arxiv.org/abs/2407.16223 or similar standard).
+    NOTE: The assignment rules below are project-specific AegisNexus judgment calls 
+    and are open to revision. They are not specified by the paper itself.
+    """
+    families = set()
+    
+    # R5 cross-principal confidentiality breach
+    if cap.permission_level == "READ" and cap.is_sensitive:
+        families.add("R5 cross-principal confidentiality breach")
+        
+    # R4 trajectory/goal integrity failure
+    if cap.permission_level in ("WRITE", "EXECUTE"):
+        families.add("R4 trajectory/goal integrity failure")
+        
+    # R1 containment failure
+    if cap.permission_level == "ADMIN":
+        families.add("R1 containment failure")
+        
+    # R3 collective-decision integrity failure
+    if cap.resource_type == "AGENT_COMMS":
+        families.add("R3 collective-decision integrity failure")
+        
+    # R7 availability/resource-isolation failure
+    if cap.resource_type in ("DATABASE", "API", "PAYMENT"):
+        families.add("R7 availability/resource-isolation failure")
+        
+    return families
+
+def derive_severity_from_families(families: set[str]) -> str:
+    """Derive severity purely from the presence of specific risk families."""
+    if "R1 containment failure" in families or "R6 transitive authorization failure" in families:
+        return "CRITICAL"
+    if "R2 loss of independence" in families or "R4 trajectory/goal integrity failure" in families:
+        return "HIGH"
+    if "R3 collective-decision integrity failure" in families or "R5 cross-principal confidentiality breach" in families or "R7 availability/resource-isolation failure" in families:
+        return "MEDIUM"
+    return "LOW"
+
 async def calculate_blast_radius(
     root_agent_id: str,
     db: AsyncSession,
@@ -211,6 +253,12 @@ async def calculate_blast_radius(
 
     impact_factors: list[str] = []
 
+    # Map risk families for all root capabilities
+    agent_families: set[str] = set()
+    for cap in root_caps:
+        cap_families = derive_capability_risk_families(cap)
+        agent_families.update(cap_families)
+
     for cap in sensitive_caps:
         perm = cap.permission_level
         impact_factors.append(
@@ -218,49 +266,33 @@ async def calculate_blast_radius(
             f"({cap.resource_type} · {perm})"
         )
 
+    has_critical_downstream = False
     for node in nodes:
         if not node.is_root and node.depth > 0 and node.trust_level in ("CRITICAL", "HIGH"):
+            agent_families.add("R6 transitive authorization failure")
+            has_critical_downstream = True
             impact_factors.append(
                 f"Reaches {node.trust_level.lower()}-trust agent: {node.label}"
             )
 
     if downstream_count >= 3:
+        agent_families.add("R2 loss of independence")
         impact_factors.append(
             f"Wide propagation: {downstream_count} downstream agents reachable"
         )
+        
     if max_depth > 1:
         impact_factors.append(
             f"Multi-hop reach: {max_depth} hops in agent graph"
         )
 
-    # Compute an additive score to pick the impact tier
-    score = 0
-    score += sum(
-        _PERMISSION_WEIGHT.get(c.permission_level, 0) for c in sensitive_caps
-    )
-    for node in nodes:
-        if not node.is_root and node.depth > 0:
-            score += _TRUST_WEIGHT.get(node.trust_level, 0)
+    potential_impact = derive_severity_from_families(agent_families)
 
-    has_payment = any(c.resource_type == "PAYMENT" for c in sensitive_caps)
-    has_admin = any(c.permission_level == "ADMIN" for c in root_caps)
-    has_critical_downstream = any(
-        not n.is_root and n.depth > 0 and n.trust_level == "CRITICAL"
-        for n in nodes
-    )
-
-    if has_payment or has_admin or has_critical_downstream or score >= 14:
-        potential_impact = "CRITICAL"
-    elif score >= 9 or (sens_count >= 3 and downstream_count >= 2):
-        potential_impact = "HIGH"
-    elif score >= 4 or sens_count >= 1 or downstream_count >= 1:
-        potential_impact = "MEDIUM"
-    else:
-        potential_impact = "LOW"
-
-    # Bump by one tier if root itself is CRITICAL trust
+    # Optional: Bump by one tier if root itself is CRITICAL trust and severity isn't already CRITICAL
     if root_agent.trust_level == "CRITICAL" and potential_impact == "MEDIUM":
         potential_impact = "HIGH"
+    elif root_agent.trust_level == "CRITICAL" and potential_impact == "LOW":
+        potential_impact = "MEDIUM"
 
     logger.info(
         "Blast radius for '%s': impact=%s, downstream=%d, sensitive_caps=%d",
@@ -282,6 +314,7 @@ async def calculate_blast_radius(
             total_capabilities=len(root_caps),
             propagation_depth=max_depth,
             potential_impact=potential_impact,
+            risk_families=sorted(list(agent_families)),
             impact_factors=impact_factors[:10],
         ),
     )

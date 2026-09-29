@@ -17,7 +17,7 @@ from app.services.recovery_engine import RecoveryEngine
 router = APIRouter(prefix="/recovery", tags=["recovery"])
 
 
-@router.get("/", response_model=List[RecoveryRecordSchema])
+@router.get("", response_model=List[RecoveryRecordSchema])
 async def list_recovery_records(
     status: Optional[str] = Query(None),
     agent_id: Optional[str] = Query(None),
@@ -86,7 +86,7 @@ async def get_recovery_record(recovery_id: str, db: AsyncSession = Depends(get_d
     return record
 
 
-@router.post("/", response_model=RecoveryRecordSchema)
+@router.post("", response_model=RecoveryRecordSchema)
 async def create_recovery_record(payload: RecoveryRecordCreate, db: AsyncSession = Depends(get_db)):
     finding = await db.get(AgentFinding, payload.finding_id)
     if not finding:

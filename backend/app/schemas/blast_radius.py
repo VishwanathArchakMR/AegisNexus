@@ -35,6 +35,7 @@ class BlastRadiusSummary(BaseModel):
     propagation_depth: int
     # CRITICAL | HIGH | MEDIUM | LOW
     potential_impact: str
+    risk_families: list[str] = []
     # Human-readable explanatory factors (max 10)
     impact_factors: list[str]
 

@@ -15,6 +15,7 @@ class AgentFindingBase(BaseModel):
     evidence: str
     affected_capability: Optional[str]
     recommendation: str
+    risk_families: list[str] = []
 
 
 class AgentFindingSummary(AgentFindingBase):

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -41,6 +41,7 @@ class AgentFinding(Base):
     affected_capability: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     recommendation: Mapped[str] = mapped_column(Text, nullable=False)
     evaluation_level: Mapped[str] = mapped_column(String(50), nullable=False, default="per-full-task")
+    risk_families: Mapped[list[str]] = mapped_column(JSON, default=list)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow

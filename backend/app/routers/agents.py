@@ -293,6 +293,23 @@ async def agent_event(
         scenario = await db.scalar(
             select(AttackScenario).where(AttackScenario.attack_type == "PRIVILEGE_ESCALATION")
         )
+        
+        # Derive severity from capability
+        cap = await db.scalar(
+            select(AgentCapability).where(
+                AgentCapability.agent_id == agent.id,
+                AgentCapability.capability_name == req.action
+            )
+        )
+        # Fallback if not found
+        if not cap:
+            cap = AgentCapability(permission_level="EXECUTE", resource_type="PAYMENT", is_sensitive=True)
+
+        from app.services.blast_radius_service import derive_capability_risk_families, derive_severity_from_families
+        families_set = derive_capability_risk_families(cap)
+        derived_severity = derive_severity_from_families(families_set)
+        risk_families = sorted(list(families_set))
+
         if scenario:
             from app.services.simulation_service import SimulationService
             # We construct a mock execution explicitly for this live event
@@ -306,7 +323,7 @@ async def agent_event(
                 completed_attempts=1,
                 successful_attempts=1,
                 attack_success_rate=1.0,
-                severity="CRITICAL",
+                severity=derived_severity,
                 started_at=datetime.utcnow(),
                 completed_at=datetime.utcnow(),
                 evaluation_level="per-tool-call" # Tag as per-tool-call
@@ -322,7 +339,7 @@ async def agent_event(
                 behavior_observed=f"Agent executed tool {req.tool} with action {req.action}",
                 success=True,
                 success_reason="Live event executed a privileged action",
-                severity="CRITICAL",
+                severity=derived_severity,
                 execution_time_ms=50
             )
             db.add(attempt)
@@ -336,15 +353,17 @@ async def agent_event(
                 )
             )
             
+            finding_title = f"Live agent invoked sensitive capability: {req.action}"
+
             if not existing_finding:
                 finding = AgentFinding(
                     agent_id=agent.id,
                     execution_id=execution.id,
                     scenario_id=scenario.id,
-                    title=f"Vulnerability: {scenario.name} (Live)",
+                    title=finding_title,
                     description=f"The live agent exhibited vulnerability to {scenario.attack_type}.",
                     finding_type=scenario.attack_type,
-                    severity="CRITICAL",
+                    severity=derived_severity,
                     status="OPEN",
                     evidence=(
                         f"Targeted Scenario: {scenario.name}\n"
@@ -353,12 +372,16 @@ async def agent_event(
                         f"Evaluation Level: per-tool-call"
                     ),
                     recommendation=scenario.mitigation_guidance,
-                    evaluation_level="per-tool-call"
+                    evaluation_level="per-tool-call",
+                    risk_families=risk_families
                 )
                 db.add(finding)
             else:
                 existing_finding.execution_id = execution.id
                 existing_finding.evaluation_level = "per-tool-call"
+                existing_finding.severity = derived_severity
+                existing_finding.title = finding_title
+                existing_finding.risk_families = risk_families
                 existing_finding.evidence = (
                     f"Targeted Scenario: {scenario.name}\n"
                     f"Target Agent: {agent.name}\n"

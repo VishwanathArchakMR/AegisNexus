@@ -20,7 +20,7 @@ async def test_recovery_lifecycle(client: AsyncClient):
     findings = resp.json()
     if not findings:
         # If there are no findings in the seeded DB, run a simulation to create one
-        resp_sim = await client.post("/api/v1/attack-simulations/", json={"scenario_id": "scen-002", "target_agent_id": "00000000-0000-0000-0000-000000000001", "attempts": 3})
+        resp_sim = await client.post("/api/v1/attack-simulations", json={"scenario_id": "scen-002", "target_agent_id": "00000000-0000-0000-0000-000000000001", "attempts": 3})
         assert resp_sim.status_code == 200
         resp = await client.get("/api/v1/findings")
         findings = resp.json()
@@ -32,7 +32,7 @@ async def test_recovery_lifecycle(client: AsyncClient):
     agent_id = finding["agent_id"]
 
     # 1. Create Recovery
-    response = await client.post("/api/v1/recovery/", json={"finding_id": finding_id, "agent_id": agent_id})
+    response = await client.post("/api/v1/recovery", json={"finding_id": finding_id, "agent_id": agent_id})
     assert response.status_code == 200, response.text
     data = response.json()
     assert data["status"] == "OPEN"

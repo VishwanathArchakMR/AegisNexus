@@ -1,51 +1,66 @@
 # AegisNexus
 
-**Continuous adversarial security, governance, and compliance platform for AI agents.**
-
-> Built for the hackathon — Phase 1 Foundation.
-
----
-
-## What This Is
-
-AegisNexus answers three questions:
-
-1. What AI agents exist in an organization?
-2. What could each agent access or do if compromised?
-3. Has the agent been tested against adversarial behaviour?
-
-### Security Pipeline
+**Continuous adversarial security, governance, and recovery platform for AI agents.**
 
 ```
-DISCOVER → MAP BLAST RADIUS → ADVERSARIAL TEST → MEASURE RISK → CLASSIFY COMPLIANCE → TRACK RECOVERY
+DISCOVER → MAP BLAST RADIUS → ATTACK → COLLECT EVIDENCE → FIND → REMEDIATE → RETEST → VERIFY → SEAL
 ```
 
----
-
-## Phase 1 Status
-
-✅ Backend API with FastAPI + SQLAlchemy  
-✅ 4 demo agents seeded with capabilities, credentials, relationships  
-✅ Dashboard summary metrics (from real DB data)  
-✅ Agent inventory endpoint  
-✅ Professional security operations UI  
-⏳ Blast radius graph — Phase 2  
-⏳ Attack engine — Phase 3  
-⏳ Risk scoring engine — Phase 4  
-⏳ Compliance + Recovery — Phase 5  
+AegisNexus answers four critical enterprise security questions:
+1. **What AI agents exist** across an organization, and what trust tiers, capabilities, and credentials do they hold?
+2. **What could each agent access or impact if compromised** (Blast Radius analysis across inter-agent delegation and sensitive tools)?
+3. **Has the agent been adversarially tested** against prompt injection, privilege escalation, PII exfiltration, and tool misuse?
+4. **Is the agent compliant** with industry security standards (OWASP Top 10 for LLMs, NIST AI RMF, SOC 2), and can remediation be verifiably tracked?
 
 ---
 
-## Prerequisites
+## Architecture Overview
 
+- **Frontend**: React 18, TypeScript, Vite, ReactFlow graph canvas, TanStack Query, and a high-contrast dark cybersecurity design system.
+- **Backend API**: FastAPI with asynchronous SQLAlchemy ORM, centralized error handling, and structured logging.
+- **Engines & Services**:
+  - `BlastRadiusService`: Breadth-first graph traversal of upstream and downstream relationships and capability-based impact scoring.
+  - `AttackEngine` & `SimulationService`: Deterministic adversarial evaluation testing agents across multiple attempts with automated finding generation.
+  - `ComplianceEngine`: Automated auditing across OWASP Top 10 for LLMs, NIST AI RMF, and SOC 2 Trust Services Criteria.
+  - `RecoveryEngine`: Multi-stage remediation lifecycle (`OPEN` → `PLANNED` → `APPROVED` → `EXECUTING` → `VERIFIED`/`RECOVERED`) with empirical verification re-testing.
+- **Persistence**: Zero-setup local SQLite via `aiosqlite` (`backend/aegisnexus.db`) with configurable `DATABASE_URL` (PostgreSQL ready).
+
+---
+
+## 3–5 Minute End-to-End Demonstration Sequence
+
+Follow this sequence to demonstrate the complete workflow:
+
+1. **Dashboard & Posture Overview** (`/dashboard`):
+   - View seeded security posture, active agent counts, total capabilities, open vulnerabilities, and real-time posture score.
+2. **Agent Inventory & Detail** (`/agents`):
+   - Browse the 4 seeded agents (Customer Support, Finance, Research, Internal Operations).
+   - Click into **Customer Support Agent** or **Finance Agent** to inspect granular permissions, sensitive credentials, and inbound/outbound communication links.
+3. **Interactive Blast Radius** (`/blast-radius`):
+   - Select **Customer Support Agent** or **Finance Agent** in the dropdown.
+   - Inspect the interactive ReactFlow canvas visualizing direct connections, credential sharing, and transitive downstream systems that could be affected if compromised.
+4. **Adversarial Attack Lab** (`/attack-simulation`):
+   - Select **Customer Support Agent** and **Customer PII Exfiltration (scen-002)** with 5 attempts.
+   - Click **Launch Simulation**. The execution runs deterministically, logging individual attempts, observed behaviors, and calculates the Attack Success Rate (ASR).
+5. **Security Findings & Evidence** (`/findings`):
+   - Open the generated finding (`Vulnerability: Customer PII Exfiltration`).
+   - Review the captured evidence, severity classification, and mitigation guidance.
+6. **Remediation & Recovery Workflow** (`/recovery`):
+   - From the finding page, click **Initialize Recovery Plan** to create an entry in the Recovery Ledger.
+   - Click **Create Plan** → **Approve Plan** → **Execute Simulated Remediation**.
+   - Click **Verify Recovery (Re-test)**: AegisNexus re-runs the attack scenario against the hardened profile, verifying that ASR drops (e.g., from 60% down to 0%) and marking the finding as `RESOLVED`.
+7. **Compliance Matrix** (`/compliance`):
+   - Inspect compliance assessments for OWASP LLM, NIST AI RMF, and SOC 2, showing pass/fail status tied to findings.
+
+---
+
+## Quickstart & Local Development
+
+### Prerequisites
 - Python 3.11+
 - Node.js 18+
 
----
-
-## Setup & Run
-
-### 1. Backend
+### 1. Backend Setup
 
 ```powershell
 cd backend
@@ -57,14 +72,16 @@ python -m venv .venv
 # Install dependencies
 pip install -r requirements.txt
 
-# Start server (auto-creates DB + seeds demo data)
+# Start backend server (auto-creates database and seeds demo agents & scenarios)
 uvicorn app.main:app --reload --port 8000
 ```
 
-Backend runs at: **http://localhost:8000**  
-API docs: **http://localhost:8000/api/docs**
+- API Base: `http://localhost:8000`
+- Swagger UI Documentation: `http://localhost:8000/api/docs`
+- Health check: `http://localhost:8000/api/v1/health`
+- Readiness check: `http://localhost:8000/api/v1/readiness`
 
-### 2. Frontend
+### 2. Frontend Setup
 
 ```powershell
 cd frontend
@@ -72,88 +89,39 @@ cd frontend
 # Install dependencies
 npm install
 
-# Start dev server
+# Start Vite dev server
 npm run dev
 ```
 
-Frontend runs at: **http://localhost:5173**
+- Web UI: `http://localhost:5173`
 
----
+### 3. Running Backend Tests & Verification
 
-## API Endpoints (Phase 1)
+```powershell
+# From backend directory
+.\.venv\Scripts\pytest -v
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/api/v1/health` | Liveness check |
-| GET | `/api/v1/agents` | List all agents |
-| GET | `/api/v1/agents/{id}` | Agent detail |
-| GET | `/api/v1/agents/{id}/capabilities` | Agent capabilities |
-| GET | `/api/v1/agents/{id}/relationships` | Agent relationships |
-| GET | `/api/v1/dashboard/summary` | Executive dashboard metrics |
-
----
-
-## Demo Agents
-
-| Agent | Trust Level | Key Capabilities |
-|-------|-------------|-----------------|
-| Customer Support Agent | HIGH | PII access, refund issuance, email sending |
-| Finance Agent | CRITICAL | Payment gateway, invoice access |
-| Research Agent | MEDIUM | Document browse, inter-agent messaging |
-| Internal Operations Agent | HIGH | DB write access, business tools |
-
-### Relationships
-
-```
-Customer Support → Finance       (refund escalation)
-Research → Customer Support      (document summaries)
-Customer Support → Research      (document lookups)
-Finance → Internal Operations    (record reconciliation)
+# From frontend directory
+npm run typecheck
+npm run build
 ```
 
 ---
 
-## Project Structure
+## Cloud Deployment Guide
 
-```
-AegisNexus/
-├── backend/
-│   ├── requirements.txt
-│   ├── app/
-│   │   ├── main.py          # FastAPI app + lifespan
-│   │   ├── config.py        # Settings
-│   │   ├── database.py      # SQLAlchemy async engine
-│   │   ├── dependencies.py  # FastAPI DI
-│   │   ├── models/          # ORM models
-│   │   ├── schemas/         # Pydantic schemas
-│   │   ├── routers/         # API route handlers
-│   │   └── simulation/      # Demo seed data
-│
-└── frontend/
-    ├── src/
-    │   ├── main.tsx
-    │   ├── router.tsx
-    │   ├── types/            # TypeScript types
-    │   ├── lib/              # API client, query config
-    │   ├── styles/           # Global CSS design system
-    │   ├── components/       # Layout + UI components
-    │   └── pages/            # Route pages
-```
+### Backend (Render / Railway / Container)
+- A multi-stage [Dockerfile](file:///c:/Users/vishw/OneDrive/Desktop/AegisNexus/backend/Dockerfile) is provided in `backend/`.
+- Set environment variables based on `backend/.env.example`:
+  - `PORT=8000`
+  - `ENVIRONMENT=production`
+  - `DATABASE_URL=sqlite+aiosqlite:////data/aegisnexus.db` (with persistent disk) or `postgresql+asyncpg://...`
+  - `CORS_ORIGINS=https://your-frontend.vercel.app`
 
----
-
-## Database
-
-SQLite (local) — stored at `backend/aegisnexus.db`  
-Auto-created on first startup. Demo data is seeded once using stable UUIDs.
-
-To reset: delete `aegisnexus.db` and restart the backend.
-
----
-
-## Next Phase
-
-Phase 2: Blast Radius graph + Agent Detail page  
-Phase 3: Attack Engine + Adversarial Simulation  
-Phase 4: Risk Scoring + Security Findings  
-Phase 5: Compliance classification + Recovery Ledger  
+### Frontend (Vercel)
+- Set Framework to **Vite**.
+- Root directory: `frontend`.
+- Build command: `npm run build`.
+- Output directory: `dist`.
+- Environment variable: `VITE_API_BASE_URL=https://your-backend.onrender.com`.
+- SPA rewrites are pre-configured in `frontend/vercel.json`.

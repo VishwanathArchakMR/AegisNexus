@@ -6,6 +6,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.core.time import utc_now
 
 if TYPE_CHECKING:
     from app.models.agent import Agent
@@ -42,9 +43,9 @@ class AgentFinding(Base):
     recommendation: Mapped[str] = mapped_column(Text, nullable=False)
     evaluation_level: Mapped[str] = mapped_column(String(50), nullable=False, default="per-full-task")
     risk_families: Mapped[list[str]] = mapped_column(JSON, default=list)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=utc_now, onupdate=utc_now
     )
 
     agent: Mapped["Agent"] = relationship("Agent", foreign_keys=[agent_id], lazy="select")

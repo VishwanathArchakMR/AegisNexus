@@ -1,6 +1,8 @@
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+from app.core.time import utc_now
+
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
@@ -146,7 +148,7 @@ class RecoveryEngine:
         recovery.status = "APPROVED"
         recovery.approval_status = "APPROVED"
         recovery.approved_by = "Local Security Operator"
-        recovery.approved_at = datetime.utcnow()
+        recovery.approved_at = utc_now()
         
         await RecoveryEngine.record_event(
             session, recovery.id, "APPROVED", "Recovery plan approved for simulated execution."
@@ -157,8 +159,8 @@ class RecoveryEngine:
     async def execute_simulation(session: AsyncSession, recovery: RecoveryRecord) -> RecoveryRecord:
         recovery.status = "VERIFYING"
         recovery.execution_status = "SIMULATED"
-        recovery.execution_started_at = datetime.utcnow()
-        recovery.execution_completed_at = datetime.utcnow()
+        recovery.execution_started_at = utc_now()
+        recovery.execution_completed_at = utc_now()
         
         await RecoveryEngine.record_event(
             session, recovery.id, "SIMULATION_COMPLETED", "Simulated remediation states applied.", 
@@ -261,7 +263,7 @@ class RecoveryEngine:
         verification_execution.attack_success_rate = round((successful_attempts / attempts) * 100, 2)
         verification_execution.severity = severity_observed
         verification_execution.status = "COMPLETED"
-        verification_execution.completed_at = datetime.utcnow()
+        verification_execution.completed_at = utc_now()
         
         recovery.verification_execution_id = verification_execution.id
         recovery.current_asr = verification_execution.attack_success_rate
@@ -290,7 +292,7 @@ class RecoveryEngine:
         # Optionally resolve the finding if recovered
         if recovery.status == "RECOVERED":
             finding.status = "RESOLVED"
-            finding.updated_at = datetime.utcnow()
+            finding.updated_at = utc_now()
             await RecoveryEngine.record_event(
                 session, recovery.id, "FINDING_RESOLVED", 
                 "Original security finding marked as RESOLVED due to successful recovery."

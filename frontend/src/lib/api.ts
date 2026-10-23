@@ -93,13 +93,13 @@ export const api = {
   },
   recovery: {
     list: (params?: { status?: string; agent_id?: string; finding_id?: string; residual_risk?: string }): Promise<import('../types').RecoveryRecord[]> =>
-      httpClient.get('/recovery/', { params }).then((r) => r.data),
+      httpClient.get('/recovery', { params }).then((r) => r.data),
     summary: (): Promise<import('../types').RecoverySummary> =>
       httpClient.get('/recovery/summary').then((r) => r.data),
     get: (id: string): Promise<import('../types').RecoveryRecord> =>
       httpClient.get(`/recovery/${id}`).then((r) => r.data),
     create: (data: { finding_id: string; agent_id: string }): Promise<import('../types').RecoveryRecord> =>
-      httpClient.post('/recovery/', data).then((r) => r.data),
+      httpClient.post('/recovery', data).then((r) => r.data),
     plan: (id: string): Promise<import('../types').RecoveryRecord> =>
       httpClient.post(`/recovery/${id}/plan`).then((r) => r.data),
     approve: (id: string): Promise<import('../types').RecoveryRecord> =>

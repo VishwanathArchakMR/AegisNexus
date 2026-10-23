@@ -15,6 +15,9 @@ if TYPE_CHECKING:
     from app.models.agent_event import AgentEvent
 
 
+from app.core.time import utc_now
+
+
 def _gen_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -43,9 +46,9 @@ class Agent(Base):
     api_key_hash: Mapped[str] = mapped_column(String(255), nullable=True)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=utc_now, onupdate=utc_now
     )
 
     organization: Mapped["Organization"] = relationship("Organization", back_populates="agents")

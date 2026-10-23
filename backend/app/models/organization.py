@@ -11,6 +11,9 @@ if TYPE_CHECKING:
     from app.models.agent import Agent
 
 
+from app.core.time import utc_now
+
+
 def _gen_uuid() -> str:
     return str(uuid.uuid4())
 
@@ -20,7 +23,7 @@ class Organization(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_gen_uuid)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     agents: Mapped[List["Agent"]] = relationship(
         "Agent", back_populates="organization", cascade="all, delete-orphan", lazy="select"

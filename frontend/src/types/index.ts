@@ -1,3 +1,5 @@
+
+
 // Shared TypeScript types mirroring backend Pydantic schemas.
 
 export type AgentStatus = 'ACTIVE' | 'INACTIVE' | 'QUARANTINED'

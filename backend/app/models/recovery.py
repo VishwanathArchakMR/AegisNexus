@@ -6,6 +6,7 @@ from sqlalchemy import DateTime, ForeignKey, String, Text, Integer, Float, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.core.time import utc_now
 
 if TYPE_CHECKING:
     from app.models.agent import Agent
@@ -37,9 +38,14 @@ class RecoveryRecord(Base):
     affected_capability: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     affected_resource: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     
+    # Strategy: CAPABILITY_REVOCATION, CREDENTIAL_ROTATION, RELATIONSHIP_SEVERANCE, PROMPT_HARDENING, MODEL_DOWNGRADE, ISOLATION_SANDBOXING, MANUAL_PATCH
+    containment_strategy: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    recovery_strategy: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    
     # Approval: NOT_REQUIRED, PENDING, APPROVED, REJECTED
     approval_status: Mapped[str] = mapped_column(String(50), nullable=False, default="NOT_REQUIRED")
     approved_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    approver: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     approved_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
     # Execution: NOT_STARTED, SIMULATED, COMPLETED, FAILED
@@ -47,11 +53,13 @@ class RecoveryRecord(Base):
     execution_started_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     execution_completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     
-    # Verification: NOT_VERIFIED, PASSED, FAILED
-    verification_status: Mapped[str] = mapped_column(String(50), nullable=False, default="NOT_VERIFIED")
+    # Verification Execution Link
     verification_execution_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("attack_executions.id", ondelete="SET NULL"), nullable=True
     )
+    
+    # Verification Result: NOT_VERIFIED, PASSED, FAILED, PARTIAL
+    verification_status: Mapped[str] = mapped_column(String(50), nullable=False, default="NOT_VERIFIED")
     
     before_state: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     after_state: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
@@ -65,9 +73,9 @@ class RecoveryRecord(Base):
     
     recovery_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow
+        DateTime, default=utc_now, onupdate=utc_now
     )
 
     finding: Mapped["AgentFinding"] = relationship("AgentFinding", lazy="select")
@@ -90,4 +98,4 @@ class RecoveryEvent(Base):
     message: Mapped[str] = mapped_column(Text, nullable=False)
     metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
     
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
+from app.core.time import utc_now
+
 if TYPE_CHECKING:
     from app.models.agent import Agent
 
@@ -31,7 +33,7 @@ class AttackScenario(Base):
     expected_behavior: Mapped[str] = mapped_column(Text, nullable=False)
     mitigation_guidance: Mapped[str] = mapped_column(Text, nullable=False)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     executions: Mapped[List["AttackExecution"]] = relationship(
         "AttackExecution",
@@ -59,7 +61,7 @@ class AttackExecution(Base):
     # 0.0 to 1.0 (or 0-100)
     attack_success_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
     severity: Mapped[str] = mapped_column(String(20), nullable=True)
-    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     evaluation_level: Mapped[str] = mapped_column(String(50), nullable=False, default="per-full-task")
@@ -93,7 +95,7 @@ class AttackAttempt(Base):
     success_reason: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     severity: Mapped[str] = mapped_column(String(20), nullable=False)
     execution_time_ms: Mapped[int] = mapped_column(Integer, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     execution: Mapped["AttackExecution"] = relationship(
         "AttackExecution", back_populates="attempts"

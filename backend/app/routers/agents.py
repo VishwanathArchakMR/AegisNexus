@@ -5,7 +5,8 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime, timezone
 import secrets
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.time import utc_now
 
 from app.dependencies import get_db, get_api_key_agent, hash_api_key
 from app.models.capability import AgentCapability
@@ -86,11 +87,13 @@ async def list_agents(
         ) or 0
 
         
-        now = datetime.utcnow()
+        now = utc_now()
         is_offline = False
         if agent.source == "LIVE":
             if agent.last_seen_at:
-                is_offline = (now - agent.last_seen_at).total_seconds() > 45
+                # Handle tz-aware vs naive compatibility if needed
+                last_seen = agent.last_seen_at.replace(tzinfo=timezone.utc) if agent.last_seen_at.tzinfo is None else agent.last_seen_at
+                is_offline = (now - last_seen).total_seconds() > 45
             else:
                 is_offline = True
 
@@ -174,11 +177,12 @@ async def get_agent(agent_id: str, db: AsyncSession = Depends(get_db)) -> AgentD
         )
     ).scalars().all()
 
-    now = datetime.utcnow()
+    now = utc_now()
     is_offline = False
     if agent.source == "LIVE":
         if agent.last_seen_at:
-            is_offline = (now - agent.last_seen_at).total_seconds() > 45
+            last_seen = agent.last_seen_at.replace(tzinfo=timezone.utc) if agent.last_seen_at.tzinfo is None else agent.last_seen_at
+            is_offline = (now - last_seen).total_seconds() > 45
         else:
             is_offline = True
 
@@ -220,7 +224,7 @@ async def register_agent(req: RegisterRequest, db: AsyncSession = Depends(get_db
         discovery_method="SELF_REPORTED",
         confidence="SELF_REPORTED",
         api_key_hash=hashed_key,
-        last_seen_at=datetime.utcnow()
+        last_seen_at=utc_now()
     )
     
     db.add(new_agent)
@@ -252,7 +256,7 @@ async def agent_heartbeat(
     if agent.id != agent_id:
         raise HTTPException(status_code=403, detail="API Key does not match agent_id")
 
-    agent.last_seen_at = datetime.utcnow()
+    agent.last_seen_at = utc_now()
     agent.status = req.status.upper()
     await db.commit()
     
@@ -279,10 +283,10 @@ async def agent_event(
         action=req.action,
         status=req.status,
         payload=req.payload,
-        created_at=datetime.utcnow()
+        created_at=utc_now()
     )
     db.add(event)
-    agent.last_seen_at = datetime.utcnow()
+    agent.last_seen_at = utc_now()
     await db.flush()
 
     # 2. Feed the SAME blast-radius/finding path DEMO agents use
@@ -324,8 +328,8 @@ async def agent_event(
                 successful_attempts=1,
                 attack_success_rate=1.0,
                 severity=derived_severity,
-                started_at=datetime.utcnow(),
-                completed_at=datetime.utcnow(),
+                started_at=utc_now(),
+                completed_at=utc_now(),
                 evaluation_level="per-tool-call" # Tag as per-tool-call
             )
             db.add(execution)

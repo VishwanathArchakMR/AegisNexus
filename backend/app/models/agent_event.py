@@ -7,6 +7,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
+from app.core.time import utc_now
+
 if TYPE_CHECKING:
     from app.models.agent import Agent
 
@@ -27,6 +29,6 @@ class AgentEvent(Base):
     action: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
     payload: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
 
     agent: Mapped["Agent"] = relationship("Agent", back_populates="events")

@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 from typing import List, Union
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Base directory for the backend (where pyproject.toml / aegisnexus.db live)
@@ -62,6 +62,18 @@ class Settings(BaseSettings):
             abs_db_path = (BACKEND_DIR / rel_path).resolve().as_posix()
             return f"{prefix}:///{abs_db_path}"
         return v
+
+    @model_validator(mode="after")
+    def validate_production_security(self) -> "Settings":
+        if self.is_production:
+            if self.DEBUG:
+                raise ValueError("DEBUG must be False in production environment.")
+            if (
+                self.SECRET_KEY in ("insecure-dev-secret-key-change-in-production", "dev-secret-key-change-in-production-min-32-chars")
+                or len(self.SECRET_KEY) < 32
+            ):
+                raise ValueError("In production, SECRET_KEY must be explicitly configured and at least 32 characters.")
+        return self
 
     @property
     def is_production(self) -> bool:

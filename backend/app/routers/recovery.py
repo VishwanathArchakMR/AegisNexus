@@ -10,8 +10,13 @@ from sqlalchemy.orm import selectinload
 from app.dependencies import get_db
 from app.models.finding import AgentFinding
 from app.models.recovery import RecoveryRecord, RecoveryEvent
-from app.schemas.recovery import RecoveryRecord as RecoveryRecordSchema, RecoveryEvent as RecoveryEventSchema, RecoverySummary
-from app.schemas.recovery import RecoveryRecordCreate
+from app.schemas.recovery import (
+    RecoveryRecord as RecoveryRecordSchema,
+    RecoveryEvent as RecoveryEventSchema,
+    RecoverySummary,
+    RecoveryRecordCreate,
+    ChainVerificationResponse,
+)
 from app.services.recovery_engine import RecoveryEngine
 
 router = APIRouter(prefix="/recovery", tags=["recovery"])
@@ -187,3 +192,13 @@ async def get_recovery_events(recovery_id: str, db: AsyncSession = Depends(get_d
         .order_by(RecoveryEvent.created_at.asc())
     )
     return result.scalars().all()
+
+
+@router.get("/{recovery_id}/verify-chain", response_model=ChainVerificationResponse)
+async def verify_recovery_chain(recovery_id: str, db: AsyncSession = Depends(get_db)):
+    record = await db.get(RecoveryRecord, recovery_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Recovery record not found")
+    result = await RecoveryEngine.verify_chain(db, recovery_id)
+    return result
+

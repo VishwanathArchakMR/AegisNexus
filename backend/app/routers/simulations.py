@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import AsyncSessionLocal
+from app.dependencies import get_db
 from app.models.simulation import AttackScenario, AttackExecution, AttackAttempt
 from app.models.finding import AgentFinding
 from app.schemas.simulation import (
@@ -18,10 +18,6 @@ from app.schemas.finding import AgentFindingSummary
 from app.services.simulation_service import SimulationService
 
 router = APIRouter(tags=["simulations"])
-
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
 
 @router.get("/attack-scenarios", response_model=List[AttackScenarioSchema])
 async def list_attack_scenarios(db: AsyncSession = Depends(get_db)):

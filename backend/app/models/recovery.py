@@ -97,5 +97,7 @@ class RecoveryEvent(Base):
     actor: Mapped[str] = mapped_column(String(100), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
     metadata_json: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    previous_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    event_hash: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)

@@ -12,9 +12,21 @@ class RecoveryEventBase(BaseModel):
 class RecoveryEvent(RecoveryEventBase):
     id: str
     recovery_record_id: str
+    previous_hash: Optional[str] = None
+    event_hash: Optional[str] = None
     created_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class ChainVerificationResponse(BaseModel):
+    recovery_record_id: str
+    is_valid: bool
+    total_events: int
+    tamper_detected: bool
+    first_invalid_event_id: Optional[str] = None
+    reason: Optional[str] = None
+    verified_at: datetime
 
 
 class RecoveryRecordBase(BaseModel):

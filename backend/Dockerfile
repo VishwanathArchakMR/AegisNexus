@@ -11,7 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+# Create non-root user in builder
+RUN useradd -u 1000 -m appuser
+
+USER appuser
+COPY --chown=appuser:appuser requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
 
 # Runner stage
@@ -21,16 +25,22 @@ WORKDIR /app
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PATH=/root/.local/bin:$PATH \
+    PATH=/home/appuser/.local/bin:$PATH \
     HOST=0.0.0.0 \
     PORT=8000
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -u 1000 -m appuser
 
-COPY --from=builder /root/.local /root/.local
-COPY . /app
+# Copy installed packages from builder
+COPY --from=builder --chown=appuser:appuser /home/appuser/.local /home/appuser/.local
+
+# Copy application code
+COPY --chown=appuser:appuser . /app
+
+USER appuser
 
 EXPOSE 8000
 

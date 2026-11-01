@@ -14,22 +14,26 @@ async def client():
         yield c
 
 async def test_recovery_lifecycle(client: AsyncClient):
-    # Get a finding
+    # Ensure we have a finding without an existing recovery record
+    existing_recs = (await client.get("/api/v1/recovery")).json()
+    used_finding_ids = {r["finding_id"] for r in existing_recs}
+
     resp = await client.get("/api/v1/findings")
-    assert resp.status_code == 200
     findings = resp.json()
-    if not findings:
-        # If there are no findings in the seeded DB, run a simulation to create one
-        resp_sim = await client.post("/api/v1/attack-simulations", json={"scenario_id": "scen-002", "target_agent_id": "00000000-0000-0000-0000-000000000001", "attempts": 3})
+    available_finding = next((f for f in findings if f["id"] not in used_finding_ids), None)
+
+    if not available_finding:
+        resp_sim = await client.post(
+            "/api/v1/attack-simulations",
+            json={"scenario_id": "scen-004", "target_agent_id": "00000000-0000-0000-0000-000000000003", "attempts": 2},
+        )
         assert resp_sim.status_code == 200
-        resp = await client.get("/api/v1/findings")
-        findings = resp.json()
-        if not findings:
-            pytest.skip("No findings available to test recovery lifecycle")
-    finding = findings[0]
-    
-    finding_id = finding["id"]
-    agent_id = finding["agent_id"]
+        findings = (await client.get("/api/v1/findings")).json()
+        available_finding = next((f for f in findings if f["id"] not in used_finding_ids), None)
+
+    assert available_finding is not None
+    finding_id = available_finding["id"]
+    agent_id = available_finding["agent_id"]
 
     # 1. Create Recovery
     response = await client.post("/api/v1/recovery", json={"finding_id": finding_id, "agent_id": agent_id})

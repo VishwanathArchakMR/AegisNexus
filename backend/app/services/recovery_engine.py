@@ -1,3 +1,6 @@
+import hashlib
+import json
+import uuid
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
@@ -14,6 +17,41 @@ from app.models.recovery import RecoveryRecord, RecoveryEvent
 from app.models.simulation import AttackExecution, AttackScenario, AttackAttempt
 from app.services.attack_engine import AttackEngine
 from app.services.blast_radius_service import calculate_blast_radius
+
+GENESIS_HASH = "GENESIS_000000000000000000000000000000000000000000000000000000000000"
+
+
+def format_timestamp(dt: Optional[datetime]) -> str:
+    """Format datetime deterministically to second precision."""
+    if not dt:
+        return ""
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def compute_event_hash(
+    event_id: str,
+    recovery_id: str,
+    event_type: str,
+    actor: str,
+    message: str,
+    metadata: Optional[Dict[str, Any]],
+    created_at_str: str,
+    previous_hash: str,
+) -> str:
+    canonical = json.dumps(
+        {
+            "id": event_id,
+            "recovery_record_id": recovery_id,
+            "event_type": event_type,
+            "actor": actor,
+            "message": message,
+            "metadata": metadata or {},
+            "created_at": created_at_str,
+            "previous_hash": previous_hash,
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class RecoveryEngine:
@@ -102,15 +140,104 @@ class RecoveryEngine:
         message: str,
         metadata: Optional[Dict[str, Any]] = None
     ) -> RecoveryEvent:
+        stmt = (
+            select(RecoveryEvent)
+            .where(RecoveryEvent.recovery_record_id == recovery_id)
+            .order_by(RecoveryEvent.created_at.desc(), RecoveryEvent.id.desc())
+        )
+        last_event = (await session.execute(stmt)).scalars().first()
+        prev_hash = last_event.event_hash if last_event and last_event.event_hash else GENESIS_HASH
+
+        event_id = str(uuid.uuid4())
+        now = utc_now()
+        ev_hash = compute_event_hash(
+            event_id=event_id,
+            recovery_id=recovery_id,
+            event_type=event_type,
+            actor="Local Security Operator",
+            message=message,
+            metadata=metadata,
+            created_at_str=format_timestamp(now),
+            previous_hash=prev_hash,
+        )
+
         event = RecoveryEvent(
+            id=event_id,
             recovery_record_id=recovery_id,
             event_type=event_type,
             actor="Local Security Operator",
             message=message,
-            metadata_json=metadata
+            metadata_json=metadata,
+            previous_hash=prev_hash,
+            event_hash=ev_hash,
+            created_at=now,
         )
         session.add(event)
         return event
+
+    @staticmethod
+    async def verify_chain(session: AsyncSession, recovery_id: str) -> Dict[str, Any]:
+        stmt = (
+            select(RecoveryEvent)
+            .where(RecoveryEvent.recovery_record_id == recovery_id)
+            .order_by(RecoveryEvent.created_at.asc(), RecoveryEvent.id.asc())
+        )
+        events = list((await session.execute(stmt)).scalars().all())
+        now = utc_now()
+        if not events:
+            return {
+                "recovery_record_id": recovery_id,
+                "is_valid": True,
+                "total_events": 0,
+                "tamper_detected": False,
+                "first_invalid_event_id": None,
+                "reason": "No events recorded",
+                "verified_at": now,
+            }
+
+        expected_prev = GENESIS_HASH
+        for ev in events:
+            if ev.previous_hash != expected_prev:
+                return {
+                    "recovery_record_id": recovery_id,
+                    "is_valid": False,
+                    "total_events": len(events),
+                    "tamper_detected": True,
+                    "first_invalid_event_id": ev.id,
+                    "reason": f"Hash chain broken: expected previous hash {expected_prev[:12]}..., got {ev.previous_hash[:12] if ev.previous_hash else 'None'}",
+                    "verified_at": now,
+                }
+            recomputed = compute_event_hash(
+                event_id=ev.id,
+                recovery_id=ev.recovery_record_id,
+                event_type=ev.event_type,
+                actor=ev.actor,
+                message=ev.message,
+                metadata=ev.metadata_json,
+                created_at_str=format_timestamp(ev.created_at),
+                previous_hash=ev.previous_hash,
+            )
+            if ev.event_hash != recomputed:
+                return {
+                    "recovery_record_id": recovery_id,
+                    "is_valid": False,
+                    "total_events": len(events),
+                    "tamper_detected": True,
+                    "first_invalid_event_id": ev.id,
+                    "reason": "Payload hash mismatch: event content has been modified",
+                    "verified_at": now,
+                }
+            expected_prev = ev.event_hash
+
+        return {
+            "recovery_record_id": recovery_id,
+            "is_valid": True,
+            "total_events": len(events),
+            "tamper_detected": False,
+            "first_invalid_event_id": None,
+            "reason": None,
+            "verified_at": now,
+        }
 
     @staticmethod
     async def create_plan(session: AsyncSession, recovery: RecoveryRecord, finding: AgentFinding) -> RecoveryRecord:

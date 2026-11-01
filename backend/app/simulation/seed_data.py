@@ -651,48 +651,56 @@ SEED_COMPLIANCE_CONTROLS = [
 ]
 
 
-async def seed_database() -> None:
-    """Idempotent: seeds demo data."""
-    async with AsyncSessionLocal() as db:
-        # 1. Agents
-        existing_agent = await db.scalar(
-            select(Agent).where(Agent.id == CUSTOMER_SUPPORT_ID)
-        )
-        if existing_agent is None:
-            logger.info("Seeding demo org and agents...")
-            db.add(Organization(id=DEMO_ORG_ID, name="Demo Org"))
-            await db.flush()
+async def _seed_into_db(db: AsyncSession) -> None:
+    # 1. Agents
+    existing_agent = await db.scalar(
+        select(Agent).where(Agent.id == CUSTOMER_SUPPORT_ID)
+    )
+    if existing_agent is None:
+        logger.info("Seeding demo org and agents...")
+        db.add(Organization(id=DEMO_ORG_ID, name="Demo Org"))
+        await db.flush()
 
-            for data in SEED_AGENTS:
-                db.add(Agent(**data))
-            await db.flush()
+        for data in SEED_AGENTS:
+            db.add(Agent(**data))
+        await db.flush()
 
-            for data in SEED_CAPABILITIES:
-                db.add(AgentCapability(**data))
-            await db.flush()
+        for data in SEED_CAPABILITIES:
+            db.add(AgentCapability(**data))
+        await db.flush()
 
-            for data in SEED_CREDENTIALS:
-                db.add(AgentCredential(**data))
-            await db.flush()
+        for data in SEED_CREDENTIALS:
+            db.add(AgentCredential(**data))
+        await db.flush()
 
-            for data in SEED_RELATIONSHIPS:
-                db.add(AgentRelationship(**data))
+        for data in SEED_RELATIONSHIPS:
+            db.add(AgentRelationship(**data))
 
-            for data in SEED_ATTACK_SCENARIOS:
-                db.add(AttackScenario(**data))
+        for data in SEED_ATTACK_SCENARIOS:
+            db.add(AttackScenario(**data))
 
-        # 2. Compliance Frameworks
-        existing_fw = await db.scalar(
-            select(ComplianceFramework).where(ComplianceFramework.id == OWASP_ID)
-        )
-        if existing_fw is None:
-            logger.info("Seeding compliance frameworks...")
-            for data in SEED_COMPLIANCE_FRAMEWORKS:
-                db.add(ComplianceFramework(**data))
-            
-            for data in SEED_COMPLIANCE_CONTROLS:
-                db.add(ComplianceControl(**data))
+    # 2. Compliance Frameworks
+    existing_fw = await db.scalar(
+        select(ComplianceFramework).where(ComplianceFramework.id == OWASP_ID)
+    )
+    if existing_fw is None:
+        logger.info("Seeding compliance frameworks...")
+        for data in SEED_COMPLIANCE_FRAMEWORKS:
+            db.add(ComplianceFramework(**data))
+        
+        for data in SEED_COMPLIANCE_CONTROLS:
+            db.add(ComplianceControl(**data))
 
-        await db.commit()
+    await db.commit()
+
+
+async def seed_database(session: AsyncSession | None = None) -> None:
+    """Idempotent: seeds demo data into AsyncSessionLocal or provided session."""
+    if session is not None:
+        await _seed_into_db(session)
+    else:
+        async with AsyncSessionLocal() as db:
+            await _seed_into_db(db)
+
 
 

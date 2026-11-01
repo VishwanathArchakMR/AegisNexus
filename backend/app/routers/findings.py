@@ -4,15 +4,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.database import AsyncSessionLocal
+from app.dependencies import get_db
 from app.models.finding import AgentFinding
+from app.models.simulation import AttackExecution
 from app.schemas.finding import AgentFindingSummary, AgentFindingDetail
 
 router = APIRouter(tags=["findings"])
-
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
 
 @router.get("/findings", response_model=List[AgentFindingSummary])
 async def list_findings(
@@ -42,8 +39,8 @@ async def get_finding(finding_id: str, db: AsyncSession = Depends(get_db)):
         select(AgentFinding)
         .options(
             selectinload(AgentFinding.agent),
-            selectinload(AgentFinding.execution).selectinload(AgentFinding.execution.class_.scenario),
-            selectinload(AgentFinding.execution).selectinload(AgentFinding.execution.class_.target_agent)
+            selectinload(AgentFinding.execution).selectinload(AttackExecution.scenario),
+            selectinload(AgentFinding.execution).selectinload(AttackExecution.target_agent)
         )
         .where(AgentFinding.id == finding_id)
     )

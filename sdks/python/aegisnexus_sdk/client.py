@@ -363,3 +363,4 @@ class AegisNexusClient:
                 self.flush()
             except Exception as e:
                 logger.debug("Periodic flush background notice: %s", e)
+

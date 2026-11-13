@@ -102,3 +102,4 @@ client.stop()
 ## 4. Privacy & Sensitive Data Minimization
 
 The SDK automatically sanitizes and redacts common sensitive keys (passwords, tokens, API keys, private keys, SSNs, credit card numbers) before metadata is transmitted. Raw prompts and complete model outputs are never captured by default.
+

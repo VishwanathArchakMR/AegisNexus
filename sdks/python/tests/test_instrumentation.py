@@ -76,3 +76,4 @@ def test_decorator_instrumentation():
     assert ev.tool == "math_tool"
     assert ev.action == "multiply"
     assert ev.status == "SUCCESS"
+

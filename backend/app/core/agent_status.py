@@ -60,3 +60,4 @@ def compute_connection_status(
         return CONNECTION_STALE, seconds_elapsed
     else:
         return CONNECTION_OFFLINE, seconds_elapsed
+

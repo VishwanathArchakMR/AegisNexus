@@ -48,3 +48,4 @@ def redact_sensitive_data(data: Any, max_depth: int = 5) -> Any:
         return data
 
     return data
+

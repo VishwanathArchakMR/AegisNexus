@@ -34,3 +34,4 @@ dev = [
 
 [tool.hatch.build.targets.wheel]
 packages = ["aegisnexus_sdk"]
+

@@ -80,3 +80,4 @@ While the agent runs, check the AegisNexus Dashboard:
    - The finding links directly to the originating telemetry event and detection rule without fabricating fake attack simulations.
 4. **Blast Radius Graph (`/blast-radius`)**:
    - Observe the dynamic edge between your external agent and the Customer Support agent, marked with `OBSERVED` provenance and call counter.
+

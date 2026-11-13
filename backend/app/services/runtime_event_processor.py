@@ -389,3 +389,4 @@ class RuntimeEventProcessor:
             matching_cap.last_observed_at = utc_now()
             if matching_cap.provenance == "SELF_REPORTED":
                 matching_cap.provenance = "OBSERVED"
+

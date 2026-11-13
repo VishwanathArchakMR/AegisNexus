@@ -62,3 +62,4 @@ async def run_sqlite_safe_migrations(conn: AsyncConnection) -> None:
                     await conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {col_def}"))
     except Exception as exc:
         logger.warning("Auto-migration check notice: %s", exc)
+

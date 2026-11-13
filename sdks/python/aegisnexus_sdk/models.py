@@ -62,3 +62,4 @@ class TelemetryEvent:
             "metadata": self.metadata,
             "sdk_version": self.sdk_version,
         }
+

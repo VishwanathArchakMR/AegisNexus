@@ -129,3 +129,4 @@ class Transport:
         path = f"/api/v1/agents/{self.agent_id}/capabilities/sync"
         payload = {"capabilities": [c.to_dict() for c in capabilities]}
         return self._request_with_retry("POST", path, payload)
+

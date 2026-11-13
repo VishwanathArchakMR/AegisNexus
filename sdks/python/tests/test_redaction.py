@@ -27,3 +27,4 @@ def test_redact_sensitive_keys():
     assert sanitized["nested"]["secret_token"] == REDACTED_VALUE
     assert sanitized["list_items"][0]["access_token"] == REDACTED_VALUE
     assert sanitized["list_items"][0]["status"] == "ok"
+

@@ -21,3 +21,4 @@ class TransportError(AegisNexusError):
 class RateLimitError(TransportError):
     """Raised when telemetry ingestion is throttled by the backend."""
     pass
+

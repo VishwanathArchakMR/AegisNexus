@@ -43,4 +43,5 @@ def test_queue_overflow_bounding():
 
     # Queue should be bounded to max_queue_size
     assert client._event_queue.qsize() == 5
+    assert client.dropped_events_count == 5
 

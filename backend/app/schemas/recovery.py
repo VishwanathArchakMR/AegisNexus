@@ -69,11 +69,18 @@ class RecoveryRecord(RecoveryRecordBase):
     current_asr: Optional[float] = None
     
     recovery_notes: Optional[str] = None
+    runtime_revalidation_notes: Optional[str] = None
     
     created_at: datetime
     updated_at: datetime
     
     model_config = ConfigDict(from_attributes=True)
+
+
+class RuntimeRevalidationRequest(BaseModel):
+    operator_decision: str = Field(..., description="Decision: RESOLVED, PARTIALLY_RESOLVED, or REOPENED")
+    rationale: str = Field(..., description="Operator rationale and assessment notes")
+    evidence_notes: Optional[str] = Field(None, description="Supporting telemetry or operational evidence")
 
 
 class RecoverySummary(BaseModel):

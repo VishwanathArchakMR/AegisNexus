@@ -373,11 +373,16 @@ async def onboard_external_agent(
     )
 
 
-@router.post("/register", response_model=RegisterResponse)
+@router.post("/register", response_model=RegisterResponse, deprecated=True)
 async def register_agent(
-    req: RegisterRequest, db: AsyncSession = Depends(get_db)
+    req: RegisterRequest,
+    _authorized: bool = Depends(get_operator_access),
+    db: AsyncSession = Depends(get_db),
 ) -> RegisterResponse:
-    """Legacy/compat self-registration endpoint."""
+    """
+    Deprecated self-registration endpoint.
+    Protected with operator authorization; use /onboard for modern agent integration.
+    """
     raw_api_key = secrets.token_urlsafe(32)
     hashed_key = hash_api_key(raw_api_key)
     now = utc_now()
@@ -557,18 +562,18 @@ async def agent_heartbeat(
     authenticated_agent: Agent = Depends(get_api_key_agent),
     db: AsyncSession = Depends(get_db),
 ) -> HeartbeatResponse:
-    """Authenticated periodic heartbeat from an external agent."""
+    """
+    Authenticated periodic heartbeat from an external agent.
+    Updates contact telemetry (last_seen_at, last_heartbeat_at, sdk_version) ONLY.
+    Administrative status (ACTIVE, INACTIVE, QUARANTINED) and trust levels are operator-controlled
+    and cannot be mutated by external agent heartbeats.
+    """
     if authenticated_agent.id != agent_id:
         raise HTTPException(status_code=403, detail="API Key does not match agent_id")
 
     now = utc_now()
     authenticated_agent.last_seen_at = now
     authenticated_agent.last_heartbeat_at = now
-
-    if req.status:
-        # Keep administrative quarantine or inactive states if operator set them
-        if authenticated_agent.status != STATUS_QUARANTINED:
-            authenticated_agent.status = req.status.upper()
 
     if req.sdk_version:
         authenticated_agent.sdk_version = req.sdk_version
@@ -638,24 +643,38 @@ async def ingest_agent_events_batch(
 
     processor = RuntimeEventProcessor(db)
     processed_count = 0
+    deduplicated_count = 0
+    rejected_count = 0
     detections_count = 0
     event_ids = []
 
     for ev_req in batch_req.events:
+        # 1. Payload size boundary check
         if ev_req.payload and len(ev_req.payload.encode("utf-8")) > settings.MAX_PAYLOAD_SIZE_BYTES:
+            rejected_count += 1
             continue
-        event, finding = await processor.process_event(authenticated_agent, ev_req)
+
+        # 2. Duration sanity boundary check
+        if ev_req.duration_ms is not None and (ev_req.duration_ms < 0 or ev_req.duration_ms > 3600000):
+            rejected_count += 1
+            continue
+
+        event, finding, is_duplicate = await processor.process_event_with_status(authenticated_agent, ev_req)
         processed_count += 1
-        event_ids.append(event.id)
-        if finding:
-            detections_count += 1
+        if is_duplicate:
+            deduplicated_count += 1
+        else:
+            event_ids.append(event.id)
+            if finding:
+                detections_count += 1
 
     await db.commit()
 
     return BatchEventIngestResponse(
         status="ok",
         processed_count=processed_count,
-        deduplicated_count=len(batch_req.events) - processed_count,
+        deduplicated_count=deduplicated_count,
+        rejected_count=rejected_count,
         detections_count=detections_count,
         event_ids=event_ids,
     )

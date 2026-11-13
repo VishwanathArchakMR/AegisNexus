@@ -33,8 +33,9 @@ export default function Recovery() {
           <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
             <dt className="text-sm font-medium text-gray-400">Avg. ASR Reduction</dt>
             <dd className="mt-2 text-3xl font-bold text-cyan-400">
-              {isSummaryLoading ? '...' : `-${summary?.average_asr_reduction ?? 0}%`}
+              {isSummaryLoading ? '...' : `+${(summary?.average_asr_reduction ?? 0).toFixed(1)} pts`}
             </dd>
+            <span className="text-xs text-gray-400 mt-1 block">percentage points</span>
           </div>
           <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
             <dt className="text-sm font-medium text-gray-400">Recovered</dt>
@@ -109,15 +110,22 @@ export default function Recovery() {
                       </td>
                       <td className="px-6 py-4">
                         {record.previous_asr != null && record.current_asr != null ? (
-                          <span className="flex items-center gap-2">
-                            <span className="text-gray-400 line-through">{record.previous_asr}%</span>
+                          <span className="flex items-center gap-1.5 font-mono text-xs">
+                            <span className="text-gray-400">{record.previous_asr.toFixed(1)}%</span>
                             <span className="text-gray-500">→</span>
-                            <span className={record.current_asr < record.previous_asr ? 'text-emerald-400 font-bold' : 'text-red-400'}>
-                              {record.current_asr}%
+                            <span className={record.current_asr < record.previous_asr ? 'text-emerald-400 font-semibold' : 'text-red-400'}>
+                              {record.current_asr.toFixed(1)}%
+                            </span>
+                            <span className="text-emerald-400/90 ml-1">
+                              (+{(record.previous_asr - record.current_asr).toFixed(1)} pts)
                             </span>
                           </span>
+                        ) : record.status === 'RECOVERED' && record.previous_asr == null ? (
+                          <span className="text-cyan-400 font-mono text-xs">Runtime Revalidated</span>
+                        ) : record.status === 'AWAITING_RUNTIME_REVALIDATION' ? (
+                          <span className="text-amber-400 font-mono text-xs">Awaiting Attestation</span>
                         ) : (
-                          <span className="text-gray-500">Pending Execution</span>
+                          <span className="text-gray-500 text-xs">Pending Execution</span>
                         )}
                       </td>
                       <td className="px-6 py-4">

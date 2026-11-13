@@ -397,6 +397,8 @@ export interface RecoveryRecord {
   verification_execution_id?: string;
   before_state?: Record<string, any>;
   after_state?: Record<string, any>;
+  recovery_notes?: string;
+  runtime_revalidation_notes?: string;
   created_at: string;
   updated_at: string;
 }

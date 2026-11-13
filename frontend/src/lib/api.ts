@@ -130,6 +130,8 @@ export const api = {
       httpClient.post(`/recovery/${id}/execute`).then((r) => r.data),
     verify: (id: string): Promise<import('../types').RecoveryRecord> =>
       httpClient.post(`/recovery/${id}/verify`).then((r) => r.data),
+    revalidate: (id: string, data: { operator_decision: string; rationale: string; evidence_notes?: string }): Promise<import('../types').RecoveryRecord> =>
+      httpClient.post(`/recovery/${id}/revalidate`, data).then((r) => r.data),
     events: (id: string): Promise<import('../types').RecoveryEvent[]> =>
       httpClient.get(`/recovery/${id}/events`).then((r) => r.data),
   }

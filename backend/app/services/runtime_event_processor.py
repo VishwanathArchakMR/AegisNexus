@@ -1,7 +1,7 @@
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 
 from sqlalchemy import select, and_, func
@@ -26,6 +26,31 @@ PERMISSION_RANK = {
     "ADMIN": 4,
 }
 
+SENSITIVE_KEY_PATTERNS = {
+    "password", "passwd", "secret", "api_key", "apikey",
+    "access_token", "token", "authorization", "auth",
+    "private_key", "privkey", "ssn", "credit_card", "card_number", "cvv"
+}
+
+
+def redact_server_telemetry(data: Any, max_depth: int = 5) -> Any:
+    """Recursively redacts sensitive keys and values from telemetry data on the server."""
+    if max_depth <= 0:
+        return "[TRUNCATED_DEPTH]"
+    if isinstance(data, dict):
+        sanitized = {}
+        for k, v in data.items():
+            if any(p in str(k).lower() for p in SENSITIVE_KEY_PATTERNS):
+                sanitized[k] = "[REDACTED]"
+            else:
+                sanitized[k] = redact_server_telemetry(v, max_depth - 1)
+        return sanitized
+    elif isinstance(data, (list, tuple, set)):
+        return [redact_server_telemetry(item, max_depth - 1) for item in data]
+    elif isinstance(data, str) and len(data) > 1000:
+        return data[:1000] + "... [TRUNCATED]"
+    return data
+
 
 class RuntimeEventProcessor:
     """
@@ -41,14 +66,30 @@ class RuntimeEventProcessor:
     async def process_event(
         self, agent: Agent, req: EventRequest
     ) -> Tuple[AgentEvent, Optional[AgentFinding]]:
+        """Processes a single event, returning (event, finding)."""
+        event, finding, _ = await self.process_event_with_status(agent, req)
+        return event, finding
+
+    async def process_event_with_status(
+        self, agent: Agent, req: EventRequest
+    ) -> Tuple[AgentEvent, Optional[AgentFinding], bool]:
         """
-        Processes a single event, updates agent telemetry, checks detection rules,
-        and optionally generates an AgentFinding if a security violation is detected.
+        Processes a single event with validation, redaction, and idempotency checks.
+        Returns: (event, finding_or_none, is_duplicate)
         """
         now = utc_now()
-        event_time = req.timestamp or now
 
-        # 1. Idempotency Check
+        # 1. Timestamp validation (clamp if beyond 60s clock skew in the future)
+        event_time = req.timestamp or now
+        if event_time > now + timedelta(seconds=60):
+            event_time = now
+
+        # 2. Duration boundary validation (0 to 1 hour max)
+        duration_ms = req.duration_ms
+        if duration_ms is not None:
+            duration_ms = max(0.0, min(float(duration_ms), 3600000.0))
+
+        # 3. Idempotency Check
         if req.event_id:
             existing_event = await self.db.scalar(
                 select(AgentEvent).where(
@@ -60,18 +101,23 @@ class RuntimeEventProcessor:
             )
             if existing_event:
                 logger.info("Duplicate event ignored for agent %s: %s", agent.id, req.event_id)
-                return existing_event, None
+                return existing_event, None, True
 
         event_id = req.event_id or str(uuid.uuid4())
 
-        # 2. Serialize sanitized metadata
-        metadata = req.metadata or {}
-        # Ensure payload is sanitized string
-        payload_str = req.payload
-        if not payload_str and metadata:
-            payload_str = json.dumps(metadata)
+        # 4. Server-Side Data Redaction and Minimization
+        raw_metadata = req.metadata or {}
+        sanitized_metadata = redact_server_telemetry(raw_metadata)
 
-        # 3. Create AgentEvent entity
+        payload_str = req.payload
+        if payload_str:
+            # Redact sensitive patterns in payload string if possible
+            if len(payload_str) > 2000:
+                payload_str = payload_str[:2000] + "... [TRUNCATED]"
+        elif sanitized_metadata:
+            payload_str = json.dumps(sanitized_metadata)
+
+        # 5. Create AgentEvent entity
         event = AgentEvent(
             id=event_id,
             agent_id=agent.id,
@@ -82,12 +128,12 @@ class RuntimeEventProcessor:
             permission_level=req.permission_level,
             status=req.status.upper(),
             payload=payload_str,
-            duration_ms=req.duration_ms,
+            duration_ms=duration_ms,
             trace_id=req.trace_id,
             span_id=req.span_id,
             parent_span_id=req.parent_span_id,
             target_agent_id=req.target_agent_id,
-            metadata_json=metadata,
+            metadata_json=sanitized_metadata,
             sdk_version=req.sdk_version,
             event_source="SDK",
             created_at=event_time,
@@ -95,7 +141,7 @@ class RuntimeEventProcessor:
         )
         self.db.add(event)
 
-        # 4. Update Agent telemetry metadata
+        # 6. Update Agent telemetry metadata
         agent.last_seen_at = now
         agent.total_events_count = (agent.total_events_count or 0) + 1
         if req.status.upper() in ("FAILURE", "ERROR", "DENIED", "BLOCKED"):
@@ -105,24 +151,24 @@ class RuntimeEventProcessor:
 
         await self.db.flush()
 
-        # 5. Fetch declared agent capabilities
+        # 7. Fetch declared agent capabilities
         caps_res = await self.db.scalars(
             select(AgentCapability).where(AgentCapability.agent_id == agent.id)
         )
         capabilities = list(caps_res.all())
 
-        # 6. Apply Deterministic Security Detection Rules
+        # 8. Apply Deterministic Security Detection Rules
         finding = await self._evaluate_detection_rules(agent, event, capabilities)
 
-        # 7. Update Observed Relationships for inter-agent communication
+        # 9. Update Observed Relationships for inter-agent communication
         if req.target_agent_id:
             await self._record_observed_relationship(agent, event, req.target_agent_id)
 
-        # 8. Update observed capability usage if authorized
+        # 10. Update observed capability usage if authorized
         if req.action and not finding and req.status.upper() == "SUCCESS":
             await self._record_capability_observation(capabilities, req.action)
 
-        return event, finding
+        return event, finding, False
 
     async def _evaluate_detection_rules(
         self, agent: Agent, event: AgentEvent, capabilities: List[AgentCapability]

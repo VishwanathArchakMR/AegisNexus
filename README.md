@@ -1,127 +1,254 @@
-# AegisNexus
+# AegisNexus 2.0
 
-**Continuous adversarial security, governance, and recovery platform for AI agents.**
+**Continuous Adversarial Security, Runtime Governance, and Verifiable Recovery Platform for Autonomous AI Agents.**
 
 ```
-DISCOVER → MAP BLAST RADIUS → ATTACK → COLLECT EVIDENCE → FIND → REMEDIATE → RETEST → VERIFY → SEAL
+DISCOVER & ONBOARD → SYNC CAPABILITIES → RUNTIME TELEMETRY → ADVERSARIAL EVALUATION → DETECT RISKS → REMEDIATE → REVALIDATE → HASH-CHAINED AUDIT LEDGER
 ```
 
-AegisNexus answers four critical enterprise security questions:
-1. **What AI agents exist** across an organization, and what trust tiers, capabilities, and credentials do they hold?
-2. **What could each agent access or impact if compromised** (Blast Radius analysis across inter-agent delegation and sensitive tools)?
-3. **Has the agent been adversarially tested** against prompt injection, privilege escalation, PII exfiltration, and tool misuse?
-4. **Is the agent compliant** with industry security standards (OWASP Top 10 for LLMs, NIST AI RMF, SOC 2), and can remediation be verifiably tracked?
+AegisNexus is an enterprise security control plane built to monitor, govern, adversarially evaluate, and remediate autonomous AI agents across their complete operational lifecycle. It supports both **internally modeled agents** and **independently running external AI agents** integrated via the official Python SDK.
 
 ---
 
-## Architecture Overview
+## Key Capabilities & Architectural Pillars
 
-- **Frontend**: React 18, TypeScript, Vite, ReactFlow graph canvas, TanStack Query, and a high-contrast dark cybersecurity design system.
-- **Backend API**: FastAPI with asynchronous SQLAlchemy ORM, centralized error handling, and structured logging.
-- **Engines & Services**:
-  - `BlastRadiusService`: Breadth-first graph traversal of upstream and downstream relationships and capability-based impact scoring.
-  - `AttackEngine` & `SimulationService`: Deterministic adversarial evaluation testing agents across multiple attempts with automated finding generation.
-  - `ComplianceEngine`: Automated auditing across OWASP Top 10 for LLMs, NIST AI RMF, and SOC 2 Trust Services Criteria.
-  - `RecoveryEngine`: Multi-stage remediation lifecycle (`OPEN` → `PLANNED` → `APPROVED` → `EXECUTING` → `VERIFIED`/`RECOVERED`) with empirical verification re-testing.
-- **Persistence**: Zero-setup local SQLite via `aiosqlite` (`backend/aegisnexus.db`) with configurable `DATABASE_URL` (PostgreSQL ready).
+### 1. External Agent Onboarding & Continuous Telemetry
+- **Dashboard Onboarding Wizard:** First-class "Add External Agent" workflow generating high-entropy API keys (stored only as salted SHA-256 hashes).
+- **Official Python SDK (`aegisnexus_sdk`):** Lightweight, asynchronous, thread-safe client with background heartbeat daemon, batched event ingestion, and dropped event monitoring (`dropped_events_count`).
+- **Telemetry Instrumentation:** Decorator (`@client.instrument_tool`) and context manager (`with client.track_tool_call(...)`) to capture tool executions, parameters, inter-agent delegations, and execution durations.
+- **Bi-Level Telemetry Redaction:** Client-side and server-side recursive redaction stripping passwords, API keys, bearer tokens, credit cards, and private credentials before storage.
+- **Real-Time Runtime Intelligence:** Automatic runtime detection for undeclared tool usage, privilege escalation, abnormal error surges, and dynamic relationship discovery.
 
----
+### 2. Standardized Canonical ASR & Posture Metrics
+- **Canonical ASR Representation:** Attack Success Rate (ASR) is strictly modeled, stored, and exchanged as a percentage float between `0.0` and `100.0`.
+- **Positive ASR Reduction:** Remediation efficacy is calculated as positive percentage points (`previous_asr - current_asr`, e.g. `60.0% → 0.0% (+60.0 pts)`).
+- **Non-Conflated Posture Scoring:** Posture calculations accurately weigh high-risk findings, compliance pass ratios, and empirical vulnerability test results without unit mismatch or double-scaling bugs.
 
-## 3–5 Minute End-to-End Demonstration Sequence
+### 3. Distinct Remediation Lifecycles
+- **Simulated Vulnerability Lifecycle:**
+  `OPEN` → `PLANNED` → `APPROVED` → `EXECUTING` → `VERIFIED` / `RECOVERED`
+  Simulated findings verify remediation by re-executing the original attack scenario against the hardened agent profile, recording empirical ASR reduction.
+- **Runtime Anomaly Lifecycle:**
+  `OPEN` → `PLANNED` → `APPROVED` → `EXECUTING` → `AWAITING_RUNTIME_REVALIDATION` → `REVALIDATED`
+  Runtime detections (e.g. undeclared capability access, abnormal communication paths) require real-world validation. AegisNexus explicitly forbids arbitrary fallback simulations or fabricated attack attempts. Operators submit cryptographic attestation evidence via `/api/v1/recovery/{id}/revalidate`.
 
-Follow this sequence to demonstrate the complete workflow:
+### 4. Cryptographic SHA-256 Hash-Chained Audit Ledger
+- Immutable recovery audit ledger where each event is cryptographically linked to the previous event (`previous_hash` + SHA-256 digest of record payload).
+- Independent tamper detection verifying ledger integrity across the entire timeline (`/api/v1/recovery/ledger/verify`).
 
-1. **Dashboard & Posture Overview** (`/dashboard`):
-   - View seeded security posture, active agent counts, total capabilities, open vulnerabilities, and real-time posture score.
-2. **Agent Inventory & Detail** (`/agents`):
-   - Browse the 4 seeded agents (Customer Support, Finance, Research, Internal Operations).
-   - Click into **Customer Support Agent** or **Finance Agent** to inspect granular permissions, sensitive credentials, and inbound/outbound communication links.
-3. **Interactive Blast Radius** (`/blast-radius`):
-   - Select **Customer Support Agent** or **Finance Agent** in the dropdown.
-   - Inspect the interactive ReactFlow canvas visualizing direct connections, credential sharing, and transitive downstream systems that could be affected if compromised.
-4. **Adversarial Attack Lab** (`/attack-simulation`):
-   - Select **Customer Support Agent** and **Customer PII Exfiltration (scen-002)** with 5 attempts.
-   - Click **Launch Simulation**. The execution runs deterministically, logging individual attempts, observed behaviors, and calculates the Attack Success Rate (ASR).
-5. **Security Findings & Evidence** (`/findings`):
-   - Open the generated finding (`Vulnerability: Customer PII Exfiltration`).
-   - Review the captured evidence, severity classification, and mitigation guidance.
-6. **Remediation & Recovery Workflow** (`/recovery`):
-   - From the finding page, click **Initialize Recovery Plan** to create an entry in the Recovery Ledger.
-   - Click **Create Plan** → **Approve Plan** → **Execute Simulated Remediation**.
-   - Click **Verify Recovery (Re-test)**: AegisNexus re-runs the attack scenario against the hardened profile, verifying that ASR drops (e.g., from 60% down to 0%) and marking the finding as `RESOLVED`.
-7. **Compliance Matrix** (`/compliance`):
-   - Inspect compliance assessments for OWASP LLM, NIST AI RMF, and SOC 2, showing pass/fail status tied to findings.
+### 5. Blast Radius Graph & Compliance Control
+- **Interactive Blast Radius Canvas:** React Flow directed graph visualizing direct dependencies, credential sharing, and transitive downstream compromise impact.
+- **Compliance Framework Alignment:** Automated mapping and assessment against OWASP Top 10 for LLMs, NIST AI RMF, and SOC 2 Trust Services Criteria.
 
 ---
 
-## Quickstart & Local Development
+## Technology Stack
+
+| Layer | Technologies |
+|---|---|
+| **Frontend** | React 18, TypeScript, Vite, React Flow, TanStack Query, Axios, Lucide Icons, Tailwind CSS |
+| **Backend API** | FastAPI, Python 3.11+, SQLAlchemy 2.x (asyncio), Pydantic v2, Uvicorn |
+| **Database & Migrations** | SQLite (via `aiosqlite`) / PostgreSQL-ready, Alembic linear migration chain |
+| **Client SDK** | Python 3.9+, HTTPX, Threading, Batch Queueing, Sensitive Field Redaction |
+
+---
+
+## Database Migrations (Alembic)
+
+AegisNexus maintains a clean, linear, version-controlled database migration chain:
+
+```
+<base>
+  └── 001_initial_schema (Initial baseline schema)
+        └── 002_external_agent_monitoring (External agent telemetry & fields)
+              └── 003_canonical_asr_and_runtime_recovery (Canonical ASR & runtime revalidation notes)
+```
+
+To run migrations:
+```powershell
+# Windows
+.\backend\.venv\Scripts\alembic -c backend\alembic.ini upgrade head
+
+# Linux / macOS
+alembic -c backend/alembic.ini upgrade head
+```
+
+---
+
+## Quickstart & Local Setup
 
 ### Prerequisites
-- Python 3.11+
-- Node.js 18+
+- Python 3.11 or higher
+- Node.js 18 or 20
+- npm 9+
 
 ### 1. Backend Setup
 
 ```powershell
+# Navigate to backend
 cd backend
 
-# Create virtual environment
+# Create & activate virtual environment (Windows PowerShell)
 python -m venv .venv
-.venv\Scripts\activate
+.\.venv\Scripts\activate
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r requirements.txt -r requirements-dev.txt
 
-# Start backend server (auto-creates database and seeds demo agents & scenarios)
+# Run database migrations
+alembic -c alembic.ini upgrade head
+
+# Start API server (port 8000)
 uvicorn app.main:app --reload --port 8000
 ```
 
-- API Base: `http://localhost:8000`
-- Swagger UI Documentation: `http://localhost:8000/api/docs`
-- Health check: `http://localhost:8000/api/v1/health`
-- Readiness check: `http://localhost:8000/api/v1/readiness`
+*(On Linux/macOS, use `source .venv/bin/activate`)*
+
+- API Base URL: `http://localhost:8000`
+- Swagger UI / Interactive Docs: `http://localhost:8000/api/docs`
+- Health Check: `http://localhost:8000/api/v1/health`
+- Readiness Check: `http://localhost:8000/api/v1/readiness`
 
 ### 2. Frontend Setup
 
 ```powershell
+# Open a new terminal and navigate to frontend
 cd frontend
 
 # Install dependencies
 npm install
 
-# Start Vite dev server
+# Start Vite development server
 npm run dev
 ```
 
-- Web UI: `http://localhost:5173`
+- Web Dashboard: `http://localhost:5173`
 
-### 3. Running Backend Tests & Verification
+---
 
+## External Agent Integration Guide
+
+### 1. Onboard Agent via Dashboard
+1. Open `http://localhost:5173/agents`.
+2. Click **Add External Agent**.
+3. Fill in agent details: Name, Framework (e.g. LangChain, CrewAI, AutoGen, Custom), Environment, and initial declared capabilities.
+4. Securely copy the generated **API Key** and **Agent ID**.
+
+### 2. Install & Configure the Python SDK
+
+Install the SDK in your agent's environment:
+```bash
+pip install -e sdks/python
+```
+
+Configure your agent:
+```python
+import os
+from aegisnexus_sdk import AegisNexusClient, CapabilityDeclaration
+
+client = AegisNexusClient(
+    endpoint=os.getenv("AEGISNEXUS_ENDPOINT", "http://localhost:8000/api/v1"),
+    agent_id=os.getenv("AEGISNEXUS_AGENT_ID"),
+    api_key=os.getenv("AEGISNEXUS_API_KEY"),
+    heartbeat_interval=15,  # Background heartbeat interval in seconds
+    fail_open=True,         # Ensures agent operations continue even if security plane is unreachable
+)
+
+# Start background heartbeat daemon
+client.start()
+
+# Register declared capabilities
+client.report_capabilities([
+    CapabilityDeclaration(
+        name="lookup_customer",
+        resource_type="DATABASE",
+        permission_level="READ",
+        is_sensitive=False,
+        description="Reads customer profiles",
+    ),
+    CapabilityDeclaration(
+        name="refund_payment",
+        resource_type="PAYMENT",
+        permission_level="WRITE",
+        is_sensitive=True,
+        description="Issues transaction refunds",
+    ),
+])
+```
+
+### 3. Instrument Tool Executions
+
+**Using Decorator:**
+```python
+@client.instrument_tool(
+    name="lookup_customer",
+    resource_type="DATABASE",
+    permission_level="READ",
+)
+def fetch_customer(customer_id: str):
+    return db.query(customer_id)
+```
+
+**Using Context Manager:**
+```python
+with client.track_tool_call(
+    tool_name="refund_payment",
+    resource_type="PAYMENT",
+    permission_level="WRITE",
+    is_sensitive=True,
+    parameters={"customer_id": "cust_123", "amount": 49.99},
+) as tracker:
+    result = payment_gateway.refund(customer_id, amount)
+    tracker.set_result(result)
+```
+
+### 4. Run the Runnable Reference Agent
+
+A fully runnable standalone reference agent is provided:
 ```powershell
-# From backend directory
-.\.venv\Scripts\pytest -v
+# Set environment variables
+$env:AEGISNEXUS_AGENT_ID="<YOUR_AGENT_ID>"
+$env:AEGISNEXUS_API_KEY="<YOUR_API_KEY>"
 
-# From frontend directory
+# Run example agent
+python examples/external_agent/agent.py
+```
+
+---
+
+## Test Suites & Quality Verification
+
+### Run Backend Tests (52 tests):
+```powershell
+cd backend
+.\.venv\Scripts\pytest tests/ -v
+```
+
+### Run SDK Tests (7 tests):
+```powershell
+cd sdks/python
+pytest tests/ -v
+```
+
+### Run Frontend Typecheck & Production Build:
+```powershell
+cd frontend
 npm run typecheck
 npm run build
 ```
 
 ---
 
-## Cloud Deployment Guide
+## Enterprise Hardening Highlights
 
-### Backend (Render / Railway / Container)
-- A multi-stage [Dockerfile](file:///c:/Users/vishw/OneDrive/Desktop/AegisNexus/backend/Dockerfile) is provided in `backend/`.
-- Set environment variables based on `backend/.env.example`:
-  - `PORT=8000`
-  - `ENVIRONMENT=production`
-  - `DATABASE_URL=sqlite+aiosqlite:////data/aegisnexus.db` (with persistent disk) or `postgresql+asyncpg://...`
-  - `CORS_ORIGINS=https://your-frontend.vercel.app`
+- **Administrative Immunity:** Heartbeat endpoints update connectivity state only; agents cannot modify their own status (`ACTIVE`, `INACTIVE`, `QUARANTINED`) or trust level.
+- **Server-Side Bounds:** Enforced event duration clamping (0–3600s), future timestamp rejection (< +60s), and batch size limits.
+- **Queue Overflow Telemetry:** When bounded memory buffers overflow under network partition, `dropped_events_count` provides operators transparent loss metrics.
+- **Operator Authorization:** Sensitive control plane operations (`/register`, `/attack-simulations`, `/revalidate`, `/assessments`) require operator access scopes.
+- **Pristine Production Build:** Zero TypeScript warnings, zero compilation errors, and complete Settings UI replacing all legacy stubs.
 
-### Frontend (Vercel)
-- Set Framework to **Vite**.
-- Root directory: `frontend`.
-- Build command: `npm run build`.
-- Output directory: `dist`.
-- Environment variable: `VITE_API_BASE_URL=https://your-backend.onrender.com`.
-- SPA rewrites are pre-configured in `frontend/vercel.json`.
+---
+
+## License
+
+Distributed under the Apache 2.0 License. See `LICENSE` for details.

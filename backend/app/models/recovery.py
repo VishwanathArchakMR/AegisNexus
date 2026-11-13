@@ -72,6 +72,7 @@ class RecoveryRecord(Base):
     current_asr: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     
     recovery_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    runtime_revalidation_notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(

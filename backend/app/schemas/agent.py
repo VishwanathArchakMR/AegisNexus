@@ -252,6 +252,7 @@ class BatchEventIngestResponse(BaseModel):
     status: str
     processed_count: int
     deduplicated_count: int
+    rejected_count: int = 0
     detections_count: int
     event_ids: List[str]
 

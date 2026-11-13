@@ -8,12 +8,12 @@ import SimulationsPage from './pages/Simulations'
 import SimulationDetailPage from './pages/Simulations/SimulationDetail'
 import FindingsPage from './pages/Findings'
 import FindingDetailPage from './pages/Findings/FindingDetail'
-import ComingSoon from './pages/ComingSoon'
 import CompliancePage from './pages/Compliance'
 import AgentComplianceDetail from './pages/Compliance/AgentComplianceDetail'
 import AssessmentDetail from './pages/Compliance/AssessmentDetail'
 import Recovery from './pages/Recovery'
 import RecoveryDetail from './pages/RecoveryDetail'
+import SettingsPage from './pages/Settings'
 
 export const router = createBrowserRouter([
   {
@@ -64,13 +64,7 @@ export const router = createBrowserRouter([
       },
       {
         path: 'settings',
-        element: (
-          <ComingSoon
-            moduleName="Settings"
-            description="Platform configuration, agent registration, API integrations, and notification settings."
-            phase="Phase 5"
-          />
-        ),
+        element: <SettingsPage />,
       },
     ],
   },

@@ -2,13 +2,13 @@ name: AegisNexus CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, "release/**"]
   pull_request:
     branches: [main]
 
 jobs:
   backend-test:
-    name: Backend Tests & Route Validation
+    name: Backend Tests & Migration Check
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,7 +27,33 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
 
+      - name: Verify Alembic migrations
+        run: |
+          alembic -c alembic.ini upgrade head
+
       - name: Run Pytest test suite
+        run: pytest -v
+
+  sdk-test:
+    name: Python SDK Tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/python
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install SDK & dev dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .[dev]
+
+      - name: Run SDK test suite
         run: pytest -v
 
   frontend-check:

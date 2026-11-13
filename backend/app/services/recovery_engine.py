@@ -173,6 +173,7 @@ class RecoveryEngine:
             created_at=now,
         )
         session.add(event)
+        await session.flush()
         return event
 
     @staticmethod
@@ -260,13 +261,15 @@ class RecoveryEngine:
             session, recovery.id, "PLAN_CREATED", "Generated deterministic remediation plan based on finding type."
         )
         
-        # Store original ASR
+        # Store original ASR (None for runtime findings)
         if finding.execution_id:
             execution = await session.get(AttackExecution, finding.execution_id)
             if execution:
                 recovery.previous_asr = execution.attack_success_rate
+            else:
+                recovery.previous_asr = None
         else:
-            recovery.previous_asr = 100.0  # Fallback assumption if no execution linked
+            recovery.previous_asr = None
             
         return recovery
 
@@ -284,10 +287,29 @@ class RecoveryEngine:
 
     @staticmethod
     async def execute_simulation(session: AsyncSession, recovery: RecoveryRecord) -> RecoveryRecord:
+        finding = await session.get(AgentFinding, recovery.finding_id)
+        now = utc_now()
+
+        # Distinct path for runtime detection findings
+        if finding and (finding.source_type == "RUNTIME_DETECTION" or not finding.execution_id):
+            recovery.status = "AWAITING_RUNTIME_REVALIDATION"
+            recovery.execution_status = "COMPLETED"
+            recovery.execution_started_at = now
+            recovery.execution_completed_at = now
+            await RecoveryEngine.record_event(
+                session,
+                recovery.id,
+                "REMEDIATION_APPLIED",
+                "Remediation controls applied. Awaiting runtime revalidation and operator attestation.",
+                metadata={"after_state": recovery.after_state},
+            )
+            return recovery
+
+        # Simulation findings path
         recovery.status = "VERIFYING"
         recovery.execution_status = "SIMULATED"
-        recovery.execution_started_at = utc_now()
-        recovery.execution_completed_at = utc_now()
+        recovery.execution_started_at = now
+        recovery.execution_completed_at = now
         
         await RecoveryEngine.record_event(
             session, recovery.id, "SIMULATION_COMPLETED", "Simulated remediation states applied.", 
@@ -310,20 +332,20 @@ class RecoveryEngine:
             recovery.verification_status = "FAILED"
             await RecoveryEngine.record_event(session, recovery.id, "VERIFICATION_FAILED", "Finding not found.")
             return recovery
+
+        # Runtime findings must NEVER generate fake AttackExecution records
+        if finding.source_type == "RUNTIME_DETECTION" or not finding.execution_id:
+            raise ValueError(
+                "Runtime detection findings require runtime revalidation attestation (revalidate_runtime_recovery), not attack simulation."
+            )
             
         scenario = finding.scenario
         if not scenario:
-            # Fallback for runtime detection findings: resolve scenario by finding_type
-            scenario = await session.scalar(
-                select(AttackScenario).where(AttackScenario.attack_type == finding.finding_type)
-            )
-            if not scenario:
-                scenario = await session.scalar(select(AttackScenario).limit(1))
-
-        if not scenario:
             recovery.status = "FAILED"
             recovery.verification_status = "FAILED"
-            await RecoveryEngine.record_event(session, recovery.id, "VERIFICATION_FAILED", "Missing original scenario or finding.")
+            await RecoveryEngine.record_event(
+                session, recovery.id, "VERIFICATION_FAILED", "Missing original scenario for simulated finding."
+            )
             return recovery
         
         # Load agent fully
@@ -400,7 +422,7 @@ class RecoveryEngine:
                     
         verification_execution.completed_attempts = attempts
         verification_execution.successful_attempts = successful_attempts
-        verification_execution.attack_success_rate = round((successful_attempts / attempts) * 100, 2)
+        verification_execution.attack_success_rate = round((successful_attempts / attempts) * 100.0, 2)
         verification_execution.severity = severity_observed
         verification_execution.status = "COMPLETED"
         verification_execution.completed_at = utc_now()
@@ -408,8 +430,9 @@ class RecoveryEngine:
         recovery.verification_execution_id = verification_execution.id
         recovery.current_asr = verification_execution.attack_success_rate
         
-        prev_asr = recovery.previous_asr or 100.0
+        prev_asr = recovery.previous_asr if recovery.previous_asr is not None else 100.0
         curr_asr = recovery.current_asr
+        reduction_pts = round(prev_asr - curr_asr, 2)
         
         if curr_asr == 0:
             recovery.status = "RECOVERED"
@@ -423,7 +446,7 @@ class RecoveryEngine:
             
         await RecoveryEngine.record_event(
             session, recovery.id, "VERIFICATION_COMPLETED", 
-            f"Verification completed. ASR changed from {prev_asr}% to {curr_asr}%. Result: {recovery.status}."
+            f"Verification completed. ASR changed from {prev_asr:.1f}% to {curr_asr:.1f}% (reduction: {reduction_pts:+.1f} percentage points). Result: {recovery.status}."
         )
         
         # Calculate residual risk
@@ -471,3 +494,83 @@ class RecoveryEngine:
             session, recovery.id, "RISK_CALCULATED", 
             f"Residual risk assessed as {recovery.residual_risk}."
         )
+
+    @staticmethod
+    async def revalidate_runtime_recovery(
+        session: AsyncSession,
+        recovery: RecoveryRecord,
+        operator_decision: str,
+        rationale: str,
+        evidence_notes: Optional[str] = None,
+        operator_name: str = "Local Security Operator",
+    ) -> RecoveryRecord:
+        """
+        Executes runtime revalidation and operator attestation for runtime detection findings.
+        Strictly bars creating fake AttackExecution / AttackAttempt simulation records while
+        maintaining complete cryptographic audit ledger integrity.
+        """
+        decision_norm = operator_decision.strip().upper()
+        now = utc_now()
+
+        # Load finding and agent
+        finding = await session.get(AgentFinding, recovery.finding_id)
+
+        if decision_norm in ("RESOLVED", "PASSED"):
+            recovery.status = "RECOVERED"
+            recovery.verification_status = "PASSED"
+            if finding:
+                finding.status = "RESOLVED"
+                finding.updated_at = now
+            recovery.residual_risk = "LOW"
+            recovery.residual_risk_explanation = (
+                f"Remediation verified via operator runtime attestation: {rationale}"
+            )
+        elif decision_norm in ("PARTIAL", "PARTIALLY_RESOLVED"):
+            recovery.status = "PARTIALLY_RECOVERED"
+            recovery.verification_status = "PASSED"
+            recovery.residual_risk = "MEDIUM"
+            recovery.residual_risk_explanation = (
+                f"Partial remediation verified via operator runtime attestation: {rationale}"
+            )
+        else:
+            recovery.status = "REOPENED"
+            recovery.verification_status = "FAILED"
+            if finding:
+                finding.status = "OPEN"
+                finding.updated_at = now
+            recovery.residual_risk = finding.severity if finding else "HIGH"
+            recovery.residual_risk_explanation = (
+                f"Runtime revalidation failed or rejected by operator: {rationale}"
+            )
+
+        notes_body = f"Operator Decision: {decision_norm}\nRationale: {rationale}"
+        if evidence_notes:
+            notes_body += f"\nEvidence: {evidence_notes}"
+        recovery.runtime_revalidation_notes = notes_body
+        recovery.recovery_notes = notes_body
+        recovery.updated_at = now
+
+        # Append cryptographically linked event to the SHA-256 ledger
+        await RecoveryEngine.record_event(
+            session=session,
+            recovery_id=recovery.id,
+            event_type="RUNTIME_REVALIDATION",
+            message=f"Operator runtime revalidation completed ({decision_norm}): {rationale}",
+            metadata={
+                "operator_decision": decision_norm,
+                "rationale": rationale,
+                "evidence_notes": evidence_notes,
+                "operator": operator_name,
+                "verified_at": now.isoformat(),
+            },
+        )
+
+        if recovery.status == "RECOVERED":
+            await RecoveryEngine.record_event(
+                session=session,
+                recovery_id=recovery.id,
+                event_type="FINDING_RESOLVED",
+                message="Runtime security finding marked as RESOLVED through successful attestation.",
+            )
+
+        return recovery

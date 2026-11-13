@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_
 from sqlalchemy.orm import selectinload
 
-from app.dependencies import get_db
+from app.dependencies import get_db, get_operator_access
 from app.models.compliance import ComplianceFramework, ComplianceControl, ComplianceAssessment, ComplianceResult
 from app.models.agent import Agent
 from app.schemas.compliance import (
@@ -56,7 +56,11 @@ async def list_controls(
 
 
 @router.post("/assessments", response_model=ComplianceAssessmentDetail)
-async def create_assessment(req: AssessmentRequest, db: AsyncSession = Depends(get_db)):
+async def create_assessment(
+    req: AssessmentRequest,
+    _authorized: bool = Depends(get_operator_access),
+    db: AsyncSession = Depends(get_db),
+):
     engine = ComplianceEngine(db)
     try:
         assessment = await engine.evaluate_agent(req.framework_id, req.agent_id)

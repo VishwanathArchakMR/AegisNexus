@@ -44,11 +44,13 @@ COLUMNS_TO_ENSURE = [
     ("agent_findings", "source_type", "VARCHAR(50) DEFAULT 'SIMULATION'"),
     ("agent_findings", "event_id", "VARCHAR(36)"),
     ("agent_findings", "detection_rule", "VARCHAR(100)"),
+
+    ("recovery_records", "runtime_revalidation_notes", "TEXT"),
 ]
 
 
 async def run_sqlite_safe_migrations(conn: AsyncConnection) -> None:
-    """Safely adds missing columns to SQLite tables if they do not exist."""
+    """Safely adds missing columns and executes idempotent ASR data normalization."""
     try:
         # Check dialect
         dialect_name = conn.dialect.name
@@ -60,6 +62,45 @@ async def run_sqlite_safe_migrations(conn: AsyncConnection) -> None:
                 if columns and column_name not in columns:
                     logger.info("Adding missing column %s.%s ...", table_name, column_name)
                     await conn.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {col_def}"))
+
+            # Idempotent Canonical ASR normalization for legacy executions & recovery records
+            await conn.execute(text("""
+                UPDATE attack_executions
+                SET attack_success_rate = ROUND((CAST(successful_attempts AS FLOAT) / total_attempts) * 100.0, 2)
+                WHERE total_attempts > 0;
+            """))
+
+            await conn.execute(text("""
+                UPDATE recovery_records
+                SET previous_asr = (
+                    SELECT ae.attack_success_rate
+                    FROM agent_findings af
+                    JOIN attack_executions ae ON af.execution_id = ae.id
+                    WHERE af.id = recovery_records.finding_id
+                )
+                WHERE finding_id IN (
+                    SELECT id FROM agent_findings WHERE execution_id IS NOT NULL
+                );
+            """))
+
+            await conn.execute(text("""
+                UPDATE recovery_records
+                SET current_asr = (
+                    SELECT attack_success_rate
+                    FROM attack_executions
+                    WHERE id = recovery_records.verification_execution_id
+                )
+                WHERE verification_execution_id IS NOT NULL;
+            """))
+
+            await conn.execute(text("""
+                UPDATE recovery_records
+                SET previous_asr = NULL
+                WHERE finding_id IN (
+                    SELECT id FROM agent_findings
+                    WHERE source_type = 'RUNTIME_DETECTION' OR execution_id IS NULL
+                );
+            """))
     except Exception as exc:
         logger.warning("Auto-migration check notice: %s", exc)
 

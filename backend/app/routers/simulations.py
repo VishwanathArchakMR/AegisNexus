@@ -4,7 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_db
+from app.dependencies import get_db, get_operator_access
 from app.models.simulation import AttackScenario, AttackExecution, AttackAttempt
 from app.models.finding import AgentFinding
 from app.schemas.simulation import (
@@ -33,7 +33,9 @@ async def get_attack_scenario(scenario_id: str, db: AsyncSession = Depends(get_d
 
 @router.post("/attack-simulations", response_model=AttackExecutionSummary)
 async def create_attack_simulation(
-    req: AttackExecutionCreate, db: AsyncSession = Depends(get_db)
+    req: AttackExecutionCreate,
+    _authorized: bool = Depends(get_operator_access),
+    db: AsyncSession = Depends(get_db),
 ):
     service = SimulationService(db)
     try:

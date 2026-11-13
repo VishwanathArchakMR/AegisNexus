@@ -61,10 +61,16 @@ class AegisNexusClient:
         self._heartbeat_thread: Optional[threading.Thread] = None
         self._flush_thread: Optional[threading.Thread] = None
         self._is_running = False
+        self._dropped_events_count = 0
         self._lock = threading.Lock()
 
         if auto_start:
             self.start()
+
+    @property
+    def dropped_events_count(self) -> int:
+        """Total number of telemetry events dropped due to queue saturation or network errors when fail_open=True."""
+        return self._dropped_events_count
 
     @classmethod
     def from_env(cls, **kwargs) -> "AegisNexusClient":
@@ -209,6 +215,7 @@ class AegisNexusClient:
         try:
             self._event_queue.put_nowait(event)
         except queue.Full:
+            self._dropped_events_count += 1
             logger.warning(
                 "AegisNexus telemetry queue full (limit %d). Dropping event %s to preserve agent memory.",
                 self._event_queue.maxsize, event.event_type
@@ -232,6 +239,7 @@ class AegisNexusClient:
         try:
             self._transport.send_events_batch(batch)
         except Exception as e:
+            self._dropped_events_count += len(batch)
             logger.warning("Batch telemetry delivery error (%d events): %s", len(batch), e)
             if not self.fail_open:
                 raise

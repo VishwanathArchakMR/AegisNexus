@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
   X,
   CheckCircle2,
@@ -74,6 +75,22 @@ export function OnboardWizardModal({ isOpen, onClose, onSuccess }: OnboardWizard
   const [copiedId, setCopiedId] = useState(false)
   const [testConnectionStatus, setTestConnectionStatus] = useState<string | null>(null)
   const [testingConnection, setTestingConnection] = useState(false)
+
+  // Duplicate Agent Pre-validation Check
+  const { data: existingAgents } = useQuery({
+    queryKey: ['agents', 'all-for-dupe-check'],
+    queryFn: () => api.agents.list(),
+    enabled: isOpen,
+  })
+
+  const isDuplicateName = !!(
+    name.trim() &&
+    existingAgents?.agents?.some(
+      (a) =>
+        a.name.trim().toLowerCase() === name.trim().toLowerCase() &&
+        (a.environment || '').toLowerCase() === environment.toLowerCase()
+    )
+  )
 
   if (!isOpen) return null
 
@@ -315,6 +332,27 @@ export function OnboardWizardModal({ isOpen, onClose, onSuccess }: OnboardWizard
                     fontSize: '0.875rem',
                   }}
                 />
+                {isDuplicateName && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: '8px 12px',
+                      background: 'rgba(234, 179, 8, 0.12)',
+                      border: '1px solid rgba(234, 179, 8, 0.4)',
+                      borderRadius: 6,
+                      color: '#facc15',
+                      fontSize: '0.75rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    <AlertTriangle size={14} />
+                    <span>
+                      Notice: An agent named &quot;{name}&quot; already exists in {environment}. A unique UUID and separate credentials will be generated.
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>

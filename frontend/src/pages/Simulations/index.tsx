@@ -193,7 +193,7 @@ export default function SimulationsPage() {
                           fontFamily: 'var(--font-mono)', fontSize: '0.875rem',
                           color: exec.attack_success_rate > 0 ? 'var(--critical)' : 'var(--low)'
                         }}>
-                          {(exec.attack_success_rate * 100).toFixed(0)}%
+                          {Number(exec.attack_success_rate).toFixed(1)}%
                         </span>
                         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                           ({exec.successful_attempts}/{exec.total_attempts} successful)

@@ -7,7 +7,7 @@ from sqlalchemy.future import select
 from sqlalchemy import func
 from sqlalchemy.orm import selectinload
 
-from app.dependencies import get_db
+from app.dependencies import get_db, get_operator_access
 from app.models.finding import AgentFinding
 from app.models.recovery import RecoveryRecord, RecoveryEvent
 from app.schemas.recovery import (
@@ -16,6 +16,7 @@ from app.schemas.recovery import (
     RecoverySummary,
     RecoveryRecordCreate,
     ChainVerificationResponse,
+    RuntimeRevalidationRequest,
 )
 from app.services.recovery_engine import RecoveryEngine
 
@@ -62,10 +63,14 @@ async def get_recovery_summary(db: AsyncSession = Depends(get_db)):
     high_risk = sum(1 for r in records if r.residual_risk == "HIGH")
     critical_risk = sum(1 for r in records if r.residual_risk == "CRITICAL")
     
-    reduction = 0.0
-    valid_reductions = [r.previous_asr - r.current_asr for r in records if r.previous_asr is not None and r.current_asr is not None]
-    if valid_reductions:
-        reduction = sum(valid_reductions) / len(valid_reductions)
+    # Calculate canonical ASR reduction in positive percentage points
+    # Only include records with a valid baseline and completed verification
+    valid_reductions = [
+        round(r.previous_asr - r.current_asr, 2)
+        for r in records
+        if r.previous_asr is not None and r.current_asr is not None and r.status in ("RECOVERED", "PARTIALLY_RECOVERED")
+    ]
+    reduction = sum(valid_reductions) / len(valid_reductions) if valid_reductions else 0.0
         
     return RecoverySummary(
         total_recovery_records=total,
@@ -92,7 +97,11 @@ async def get_recovery_record(recovery_id: str, db: AsyncSession = Depends(get_d
 
 
 @router.post("", response_model=RecoveryRecordSchema)
-async def create_recovery_record(payload: RecoveryRecordCreate, db: AsyncSession = Depends(get_db)):
+async def create_recovery_record(
+    payload: RecoveryRecordCreate,
+    _authorized: bool = Depends(get_operator_access),
+    db: AsyncSession = Depends(get_db),
+):
     finding = await db.get(AgentFinding, payload.finding_id)
     if not finding:
         raise HTTPException(status_code=404, detail="Finding not found")
@@ -120,7 +129,11 @@ async def create_recovery_record(payload: RecoveryRecordCreate, db: AsyncSession
 
 
 @router.post("/{recovery_id}/plan", response_model=RecoveryRecordSchema)
-async def create_recovery_plan(recovery_id: str, db: AsyncSession = Depends(get_db)):
+async def create_recovery_plan(
+    recovery_id: str,
+    _authorized: bool = Depends(get_operator_access),
+    db: AsyncSession = Depends(get_db),
+):
     record = await db.get(RecoveryRecord, recovery_id)
     if not record:
         raise HTTPException(status_code=404, detail="Recovery record not found")
@@ -137,7 +150,11 @@ async def create_recovery_plan(recovery_id: str, db: AsyncSession = Depends(get_
 
 
 @router.post("/{recovery_id}/approve", response_model=RecoveryRecordSchema)
-async def approve_recovery(recovery_id: str, db: AsyncSession = Depends(get_db)):
+async def approve_recovery(
+    recovery_id: str,
+    _authorized: bool = Depends(get_operator_access),
+    db: AsyncSession = Depends(get_db),
+):
     record = await db.get(RecoveryRecord, recovery_id)
     if not record:
         raise HTTPException(status_code=404, detail="Recovery record not found")
@@ -153,7 +170,11 @@ async def approve_recovery(recovery_id: str, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/{recovery_id}/execute", response_model=RecoveryRecordSchema)
-async def execute_recovery(recovery_id: str, db: AsyncSession = Depends(get_db)):
+async def execute_recovery(
+    recovery_id: str,
+    _authorized: bool = Depends(get_operator_access),
+    db: AsyncSession = Depends(get_db),
+):
     record = await db.get(RecoveryRecord, recovery_id)
     if not record:
         raise HTTPException(status_code=404, detail="Recovery record not found")
@@ -169,16 +190,65 @@ async def execute_recovery(recovery_id: str, db: AsyncSession = Depends(get_db))
 
 
 @router.post("/{recovery_id}/verify", response_model=RecoveryRecordSchema)
-async def verify_recovery(recovery_id: str, db: AsyncSession = Depends(get_db)):
+async def verify_recovery(
+    recovery_id: str,
+    _authorized: bool = Depends(get_operator_access),
+    db: AsyncSession = Depends(get_db),
+):
     record = await db.get(RecoveryRecord, recovery_id)
     if not record:
         raise HTTPException(status_code=404, detail="Recovery record not found")
+
+    finding = await db.get(AgentFinding, record.finding_id)
+    if finding and (finding.source_type == "RUNTIME_DETECTION" or not finding.execution_id):
+        raise HTTPException(
+            status_code=400,
+            detail="Runtime detection findings require operator runtime revalidation attestation via /revalidate, not attack simulation.",
+        )
         
     if record.execution_status != "SIMULATED":
         raise HTTPException(status_code=400, detail="Must execute simulation before verifying")
         
-    record = await RecoveryEngine.verify_recovery(db, record)
+    try:
+        record = await RecoveryEngine.verify_recovery(db, record)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     
+    await db.commit()
+    await db.refresh(record)
+    return record
+
+
+@router.post("/{recovery_id}/revalidate", response_model=RecoveryRecordSchema)
+async def revalidate_runtime_recovery(
+    recovery_id: str,
+    payload: RuntimeRevalidationRequest,
+    _authorized: bool = Depends(get_operator_access),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Operator runtime revalidation attestation for runtime detection findings.
+    Validates remediation outcomes via runtime observation without generating fake simulation records.
+    """
+    record = await db.get(RecoveryRecord, recovery_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Recovery record not found")
+
+    finding = await db.get(AgentFinding, record.finding_id)
+    if finding and finding.source_type == "SIMULATION" and finding.execution_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Simulation-based findings must be verified via /verify simulation, not runtime revalidation.",
+        )
+
+    record = await RecoveryEngine.revalidate_runtime_recovery(
+        session=db,
+        recovery=record,
+        operator_decision=payload.operator_decision,
+        rationale=payload.rationale,
+        evidence_notes=payload.evidence_notes,
+    )
+
     await db.commit()
     await db.refresh(record)
     return record

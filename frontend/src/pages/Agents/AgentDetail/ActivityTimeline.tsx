@@ -98,11 +98,28 @@ export function ActivityTimeline({ agentId }: ActivityTimelineProps) {
               color: 'var(--text-secondary)',
             }}
           >
-            {events.length} events
+            {eventTypeFilter ? `${events.length} matching / ${data?.total ?? events.length} total` : `${data?.total ?? events.length} events`}
           </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          {eventTypeFilter && (
+            <button
+              onClick={() => setEventTypeFilter('')}
+              style={{
+                background: 'transparent',
+                border: 'none',
+                color: 'var(--accent)',
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                textDecoration: 'underline',
+                padding: '2px 4px',
+              }}
+            >
+              Clear Filter
+            </button>
+          )}
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
             <Filter size={12} color="var(--text-muted)" />
             <select
@@ -161,7 +178,26 @@ export function ActivityTimeline({ agentId }: ActivityTimelineProps) {
             fontSize: '0.8125rem',
           }}
         >
-          No runtime activity recorded yet. Run your agent or wait for the next heartbeat telemetry event.
+          {eventTypeFilter ? (
+            <div>
+              <span>No events match filter &quot;{eventTypeFilter}&quot;. </span>
+              <button
+                onClick={() => setEventTypeFilter('')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--accent)',
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                  fontSize: '0.8125rem',
+                }}
+              >
+                Clear filter
+              </button>
+            </div>
+          ) : (
+            'No runtime activity recorded yet. Run your agent or wait for the next heartbeat telemetry event.'
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column' }}>

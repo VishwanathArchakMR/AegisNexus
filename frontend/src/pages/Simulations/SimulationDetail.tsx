@@ -24,7 +24,7 @@ export default function SimulationDetailPage() {
     return <div style={{ padding: 24, color: 'var(--critical)' }}>Failed to load simulation execution.</div>
   }
 
-  const asrPercent = (data.attack_success_rate * 100).toFixed(0)
+  const asrPercent = Number(data.attack_success_rate).toFixed(1)
   const isVulnerable = data.attack_success_rate > 0
 
   return (

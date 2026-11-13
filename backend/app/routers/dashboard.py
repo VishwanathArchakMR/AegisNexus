@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends
-from sqlalchemy import func, select
+from sqlalchemy import func, select, or_, and_, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.agent_status import compute_connection_status, CONNECTION_ONLINE, CONNECTION_STALE, CONNECTION_OFFLINE
@@ -99,7 +99,25 @@ async def get_dashboard_summary(
     ) or 0
 
     total_runtime_events = (await db.scalar(select(func.count(AgentEvent.id)))) or 0
-    agents_requiring_attention = critical_trust + quarantined_agents
+
+    # Distinct agents requiring operator attention:
+    # Quarantined agents, active agents with revoked credentials, or agents with open critical/high findings
+    agents_requiring_attention = (
+        await db.scalar(
+            select(func.count(distinct(Agent.id))).where(
+                or_(
+                    Agent.status == "QUARANTINED",
+                    and_(Agent.status == "ACTIVE", Agent.api_key_status == "REVOKED"),
+                    Agent.id.in_(
+                        select(AgentFinding.agent_id).where(
+                            AgentFinding.status == "OPEN",
+                            AgentFinding.severity.in_(["CRITICAL", "HIGH"]),
+                        )
+                    ),
+                )
+            )
+        )
+    ) or 0
 
     # Posture Score calculation
     if total_agents > 0 and total_capabilities > 0:
@@ -110,8 +128,7 @@ async def get_dashboard_summary(
         # Penalties for measured vulnerabilities and critical findings
         if total_simulations > 0 or runtime_findings > 0:
             if average_asr > 0.0:
-                # If average_asr is formatted as percentage 0-100 or ratio 0-1, handle properly
-                asr_ratio = average_asr / 100.0 if average_asr > 1.0 else average_asr
+                asr_ratio = min(1.0, max(0.0, average_asr / 100.0))
                 posture_score = max(5, int(posture_score - (asr_ratio * 50)))
             if critical_findings > 0:
                 posture_score = max(5, posture_score - (critical_findings * 5))

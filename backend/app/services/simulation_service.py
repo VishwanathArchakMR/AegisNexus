@@ -82,8 +82,8 @@ class SimulationService:
             )
             self.db.add(attempt)
         
-        # 5. Calculate Metrics
-        asr = successful_attempts_count / attempts if attempts > 0 else 0.0
+        # 5. Calculate Metrics (Canonical ASR: percentage from 0.0 to 100.0)
+        asr = round((successful_attempts_count / attempts) * 100.0, 2) if attempts > 0 else 0.0
         
         execution.completed_attempts = attempts
         execution.successful_attempts = successful_attempts_count
@@ -104,14 +104,6 @@ class SimulationService:
                 )
             )
 
-            # We create a new finding for this execution, or we could update the existing one.
-            # The prompt said: "Deduplicate findings by: target agent + scenario + vulnerability/behavior type. 
-            # Therefore, repeated successful attempts of the same vulnerability should normally produce ONE finding for that execution."
-            # Since we are making a finding per execution for the same vulnerability, we should just make sure we only generate 1 finding per execution.
-            
-            # Note: "Deduplicate findings by: target agent + scenario + vulnerability/behavior type."
-            # We'll just create a single finding per execution since the execution tests one scenario.
-            
             # Find the first successful attempt to pull evidence
             first_success = await self.db.scalar(
                 select(AttackAttempt).where(
@@ -120,12 +112,12 @@ class SimulationService:
                 )
             )
 
-            # Check if we should update existing or create new. Let's create new if none exist, or update existing if we want true deduplication across the DB.
             if not existing_finding:
                 finding = AgentFinding(
                     agent_id=agent.id,
                     execution_id=execution.id,
                     scenario_id=scenario.id,
+                    source_type="SIMULATION",
                     title=f"Vulnerability: {scenario.name}",
                     description=f"The agent is vulnerable to {scenario.attack_type}.",
                     finding_type=scenario.attack_type,
@@ -134,7 +126,7 @@ class SimulationService:
                     evidence=(
                         f"Targeted Scenario: {scenario.name}\n"
                         f"Target Agent: {agent.name}\n"
-                        f"ASR: {asr * 100:.1f}% ({successful_attempts_count}/{attempts} successful attempts).\n"
+                        f"ASR: {asr:.1f}% ({successful_attempts_count}/{attempts} successful attempts).\n"
                         f"Observed Behavior: {first_success.behavior_observed if first_success else 'Unsafe behavior'}\n"
                         f"Reason: {first_success.success_reason if first_success else 'Simulation succeeded'}"
                     ),
@@ -144,10 +136,11 @@ class SimulationService:
             else:
                 # Update existing finding with latest evidence
                 existing_finding.execution_id = execution.id
+                existing_finding.source_type = "SIMULATION"
                 existing_finding.evidence = (
                     f"Targeted Scenario: {scenario.name}\n"
                     f"Target Agent: {agent.name}\n"
-                    f"Latest ASR: {asr * 100:.1f}% ({successful_attempts_count}/{attempts} successful attempts).\n"
+                    f"Latest ASR: {asr:.1f}% ({successful_attempts_count}/{attempts} successful attempts).\n"
                     f"Observed Behavior: {first_success.behavior_observed if first_success else 'Unsafe behavior'}\n"
                     f"Reason: {first_success.success_reason if first_success else 'Simulation succeeded'}"
                 )

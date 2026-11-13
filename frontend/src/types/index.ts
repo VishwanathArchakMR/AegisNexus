@@ -3,6 +3,7 @@
 // Shared TypeScript types mirroring backend Pydantic schemas.
 
 export type AgentStatus = 'ACTIVE' | 'INACTIVE' | 'QUARANTINED'
+export type ConnectionStatus = 'ONLINE' | 'STALE' | 'OFFLINE' | 'NEVER_CONNECTED'
 export type TrustLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
 export type AgentType = 'customer_support' | 'finance' | 'research' | 'ops' | 'custom'
 export type ResourceType = 'EMAIL' | 'DATABASE' | 'PAYMENT' | 'FILE' | 'API' | 'AGENT_COMMS'
@@ -17,6 +18,9 @@ export interface AgentCapability {
   permission_level: PermissionLevel
   is_sensitive: boolean
   description: string | null
+  provenance?: 'SELF_REPORTED' | 'OBSERVED' | 'VERIFIED' | 'SEEDED'
+  last_observed_at?: string | null
+  call_count?: number
 }
 
 export interface AgentCredential {
@@ -35,6 +39,9 @@ export interface AgentRelationship {
   relationship_type: RelationshipType
   trust_direction: string
   description: string | null
+  provenance?: string
+  last_interaction_at?: string | null
+  interaction_count?: number
 }
 
 export interface AgentBasic {
@@ -49,6 +56,19 @@ export interface AgentBasic {
   confidence: string
   last_seen_at: string | null
   is_offline: boolean
+  framework?: string
+  environment?: string
+  deployment_location?: string | null
+  tags?: string[]
+  sdk_version?: string | null
+  api_key_status?: string
+  api_key_created_at?: string | null
+  api_key_revoked_at?: string | null
+  heartbeat_interval_seconds?: number
+  last_heartbeat_at?: string | null
+  total_events_count?: number
+  recent_errors_count?: number
+  connection_status?: ConnectionStatus
 }
 
 export interface AgentSummary {
@@ -69,6 +89,19 @@ export interface AgentSummary {
   confidence: string
   last_seen_at: string | null
   is_offline: boolean
+  framework?: string
+  environment?: string
+  deployment_location?: string | null
+  tags?: string[]
+  sdk_version?: string | null
+  api_key_status?: string
+  api_key_created_at?: string | null
+  api_key_revoked_at?: string | null
+  heartbeat_interval_seconds?: number
+  last_heartbeat_at?: string | null
+  total_events_count?: number
+  recent_errors_count?: number
+  connection_status?: ConnectionStatus
 }
 
 export interface AgentDetail
@@ -110,6 +143,13 @@ export interface DashboardSummary {
   posture_score: number
   posture_label: string
   posture_status: string
+
+  online_agents?: number
+  stale_agents?: number
+  offline_agents?: number
+  never_connected_agents?: number
+  runtime_findings?: number
+  total_runtime_events?: number
 }
 
 export interface HealthResponse {
@@ -246,6 +286,9 @@ export interface AgentFindingSummary {
   created_at: string
   updated_at: string
   agent: AgentBasic
+  source_type?: 'SIMULATION' | 'RUNTIME_DETECTION' | 'ADMINISTRATIVE'
+  event_id?: string | null
+  detection_rule?: string | null
 }
 
 export interface AgentFindingDetail extends AgentFindingSummary {
@@ -399,3 +442,96 @@ export interface AgentCompliancePosture {
   agent_id: string
   frameworks: AgentFrameworkPosture[]
 }
+
+// ── External Agent Onboarding & Continuous Monitoring ────────────────────────
+
+export interface CapabilityInput {
+  name: string
+  resource_type: ResourceType
+  permission_level: PermissionLevel
+  is_sensitive: boolean
+  description?: string
+}
+
+export interface AgentOnboardRequest {
+  name: string
+  description: string
+  agent_type?: string
+  framework?: string
+  owner_team?: string
+  environment?: string
+  deployment_location?: string
+  tags?: string[]
+  initial_trust_level?: TrustLevel
+  heartbeat_interval_seconds?: number
+  capabilities?: CapabilityInput[]
+}
+
+export interface AgentOnboardResponse {
+  agent_id: string
+  api_key: string
+  name: string
+  agent_type: string
+  framework: string
+  owner_team: string
+  environment: string
+  trust_level: string
+  api_key_status: string
+  created_at: string
+  capabilities: AgentCapability[]
+}
+
+export interface KeyRotateResponse {
+  agent_id: string
+  new_api_key: string
+  api_key_status: string
+  rotated_at: string
+}
+
+export interface KeyRevokeResponse {
+  agent_id: string
+  api_key_status: string
+  revoked_at: string
+}
+
+export interface ConnectionStatusResponse {
+  agent_id: string
+  status: AgentStatus
+  connection_status: ConnectionStatus
+  last_seen_at: string | null
+  last_heartbeat_at: string | null
+  heartbeat_interval_seconds: number
+  stale_threshold_seconds: number
+  offline_threshold_seconds: number
+  total_events_count: number
+  recent_errors_count: number
+}
+
+export interface TelemetryEvent {
+  id: string
+  agent_id: string
+  event_type: string
+  tool_name?: string | null
+  action?: string | null
+  resource_type?: ResourceType | null
+  permission_level?: PermissionLevel | null
+  status: string
+  duration_ms?: number | null
+  trace_id?: string | null
+  span_id?: string | null
+  parent_span_id?: string | null
+  target_agent_id?: string | null
+  metadata_json?: Record<string, any> | null
+  sdk_version?: string | null
+  event_source?: string
+  created_at: string
+  server_received_at: string
+}
+
+export interface EventListResponse {
+  events: TelemetryEvent[]
+  total: number
+  limit: number
+  offset: number
+}
+

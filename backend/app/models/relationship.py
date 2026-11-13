@@ -1,7 +1,8 @@
 import uuid
+from datetime import datetime
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import ForeignKey, String, Text, Integer, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -31,6 +32,12 @@ class AgentRelationship(Base):
         String(20), nullable=False, default="UNIDIRECTIONAL"
     )
     description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Provenance and Runtime Observation Tracking
+    provenance: Mapped[str] = mapped_column(String(50), nullable=False, default="SEEDED")
+    last_interaction_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    interaction_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    last_event_id: Mapped[Optional[str]] = mapped_column(String(36), nullable=True)
 
     source_agent: Mapped["Agent"] = relationship(
         "Agent",

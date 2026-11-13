@@ -14,7 +14,14 @@ import type {
   AttackExecutionCreate,
   AttackAttempt,
   AgentFindingSummary,
-  AgentFindingDetail
+  AgentFindingDetail,
+  AgentOnboardRequest,
+  AgentOnboardResponse,
+  KeyRotateResponse,
+  KeyRevokeResponse,
+  ConnectionStatusResponse,
+  EventListResponse,
+  CapabilityInput
 } from '../types'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
@@ -48,6 +55,21 @@ export const api = {
       httpClient.get('/agents', { params }).then((r) => r.data),
     get: (id: string): Promise<AgentDetail> =>
       httpClient.get(`/agents/${id}`).then((r) => r.data),
+    onboard: (data: AgentOnboardRequest): Promise<AgentOnboardResponse> =>
+      httpClient.post('/agents/onboard', data).then((r) => r.data),
+    rotateKey: (id: string): Promise<KeyRotateResponse> =>
+      httpClient.post(`/agents/${id}/rotate-key`).then((r) => r.data),
+    revokeKey: (id: string): Promise<KeyRevokeResponse> =>
+      httpClient.post(`/agents/${id}/revoke-key`).then((r) => r.data),
+    connectionStatus: (id: string): Promise<ConnectionStatusResponse> =>
+      httpClient.get(`/agents/${id}/connection-status`).then((r) => r.data),
+    events: (
+      id: string,
+      params?: { limit?: number; offset?: number; event_type?: string; status?: string }
+    ): Promise<EventListResponse> =>
+      httpClient.get(`/agents/${id}/events`, { params }).then((r) => r.data),
+    syncCapabilities: (id: string, capabilities: CapabilityInput[]): Promise<AgentCapability[]> =>
+      httpClient.post(`/agents/${id}/capabilities/sync`, { capabilities }).then((r) => r.data),
     capabilities: (id: string): Promise<AgentCapability[]> =>
       httpClient.get(`/agents/${id}/capabilities`).then((r) => r.data),
     relationships: (id: string): Promise<AgentRelationship[]> =>

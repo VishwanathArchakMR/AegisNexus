@@ -10,6 +10,7 @@ from app.core.time import utc_now
 
 if TYPE_CHECKING:
     from app.models.agent import Agent
+    from app.models.agent_event import AgentEvent
     from app.models.simulation import AttackExecution, AttackScenario
 
 
@@ -22,7 +23,7 @@ class AgentFinding(Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_gen_uuid)
     agent_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("agents.id", ondelete="CASCADE")
+        String(36), ForeignKey("agents.id", ondelete="CASCADE"), nullable=False
     )
     execution_id: Mapped[Optional[str]] = mapped_column(
         String(36), ForeignKey("attack_executions.id", ondelete="SET NULL"), nullable=True
@@ -31,6 +32,15 @@ class AgentFinding(Base):
         String(36), ForeignKey("attack_scenarios.id", ondelete="SET NULL"), nullable=True
     )
     
+    # Provenance and Detection Origin
+    source_type: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="SIMULATION"
+    )  # SIMULATION, RUNTIME_DETECTION, ADMINISTRATIVE
+    event_id: Mapped[Optional[str]] = mapped_column(
+        String(36), ForeignKey("agent_events.id", ondelete="SET NULL"), nullable=True
+    )
+    detection_rule: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     finding_type: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -54,4 +64,7 @@ class AgentFinding(Base):
     )
     scenario: Mapped[Optional["AttackScenario"]] = relationship(
         "AttackScenario", foreign_keys=[scenario_id], lazy="select"
+    )
+    event: Mapped[Optional["AgentEvent"]] = relationship(
+        "AgentEvent", foreign_keys=[event_id], lazy="select"
     )

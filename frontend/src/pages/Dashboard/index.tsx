@@ -44,7 +44,7 @@ export default function DashboardPage() {
     <div>
       <PageHeader
         title="Security Dashboard"
-        subtitle="AI agent posture overview — Phase 1 Foundation"
+        subtitle="AI agent posture overview & continuous runtime intelligence"
       />
 
       {/* API error */}
@@ -138,13 +138,14 @@ export default function DashboardPage() {
             fontSize: '0.75rem',
             color: 'var(--text-muted)',
             fontFamily: 'var(--font-mono)',
+            flexWrap: 'wrap',
           }}
         >
           <span><Activity size={11} style={{ marginRight: 4 }} color="var(--low)" />SYSTEM ONLINE</span>
-          <span>AGENTS: {summary.total_agents}</span>
+          <span>AGENTS: {summary.total_agents} ({summary.online_agents ?? 0} ONLINE)</span>
           <span>CAPABILITIES: {summary.total_capabilities}</span>
-          <span>RELATIONSHIPS: {summary.total_relationships}</span>
-          <span>FINDINGS: {summary.open_findings} OPEN</span>
+          <span>RUNTIME EVENTS: {summary.total_runtime_events ?? 0}</span>
+          <span>FINDINGS: {summary.open_findings} OPEN ({summary.runtime_findings ?? 0} RUNTIME)</span>
           <span style={{ marginLeft: 'auto' }}>
             POSTURE ENGINE: {summary.posture_label}
           </span>

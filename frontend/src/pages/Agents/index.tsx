@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { AlertTriangle, ArrowRight, Lock, Search, Filter } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Lock, Search, Filter, Plus, Activity } from 'lucide-react'
 import { api } from '../../lib/api'
 import { PageHeader } from '../../components/layout/PageHeader'
 import { TrustBadge, StatusBadge } from '../../components/ui/Badge'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { EmptyState } from '../../components/ui/EmptyState'
-import type { AgentSummary, AgentListParams } from '../../types'
+import { OnboardWizardModal } from './OnboardWizardModal'
+import type { AgentSummary, AgentListParams, ConnectionStatus } from '../../types'
 
 const AGENT_TYPE_LABELS: Record<string, string> = {
   customer_support: 'Customer Support',
@@ -21,15 +22,58 @@ function formatLastSeen(dateStr: string | null, isOffline: boolean): string {
   if (!dateStr) return 'Never'
   if (isOffline) return 'Offline'
   
-  const diff = Date.now() - new Date(dateStr + "Z").getTime() // dateStr from DB is UTC but might lack Z
+  const diff = Date.now() - new Date(dateStr.endsWith('Z') ? dateStr : dateStr + "Z").getTime()
   const seconds = Math.floor(diff / 1000)
-  if (seconds < 60) return `${seconds}s ago`
+  if (seconds < 60) return `${Math.max(0, seconds)}s ago`
   const minutes = Math.floor(seconds / 60)
   return `${minutes}m ago`
 }
 
+function ConnectionStatusPill({ status }: { status?: ConnectionStatus }) {
+  if (!status) return null
+
+  const config = {
+    ONLINE: { color: 'var(--low)', bg: 'var(--low-dim)', label: 'ONLINE', dot: true },
+    STALE: { color: 'var(--medium)', bg: 'var(--medium-dim)', label: 'STALE', dot: true },
+    OFFLINE: { color: 'var(--text-muted)', bg: 'var(--bg-elevated)', label: 'OFFLINE', dot: false },
+    NEVER_CONNECTED: { color: 'var(--text-muted)', bg: 'var(--bg-elevated)', label: 'NOT CONNECTED', dot: false },
+  }[status] || { color: 'var(--text-muted)', bg: 'var(--bg-elevated)', label: status, dot: false }
+
+  return (
+    <span
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 5,
+        padding: '2px 7px',
+        borderRadius: 4,
+        fontSize: '0.6875rem',
+        fontWeight: 600,
+        backgroundColor: config.bg,
+        color: config.color,
+        border: `1px solid ${config.color}33`,
+      }}
+    >
+      {config.dot && (
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            backgroundColor: config.color,
+            display: 'inline-block',
+          }}
+        />
+      )}
+      {config.label}
+    </span>
+  )
+}
+
 export default function AgentsPage() {
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [isOnboardingOpen, setIsOnboardingOpen] = useState(false)
   const [params, setParams] = useState<AgentListParams>({
     search: '',
     status: '',
@@ -37,14 +81,12 @@ export default function AgentsPage() {
     agent_type: '',
   })
 
-  // We debounce the actual API call for search by using a local state and a timeout
-  // but for simplicity in this Phase 2 we can just let React Query handle it with refetch,
-  // or pass the params directly.
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['agents', 'list', params],
     queryFn: () => api.agents.list(
       Object.fromEntries(Object.entries(params).filter(([_, v]) => v !== ''))
     ),
+    refetchInterval: 10_000, // Poll every 10s to keep connection statuses live
   })
 
   const updateFilter = useCallback((key: keyof AgentListParams, value: string) => {
@@ -57,6 +99,28 @@ export default function AgentsPage() {
         title="Agent Inventory"
         subtitle={
           data ? `${data.total} registered agent${data.total !== 1 ? 's' : ''} in the platform` : 'Loading agent registry…'
+        }
+        actions={
+          <button
+            id="btn-add-external-agent"
+            onClick={() => setIsOnboardingOpen(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'var(--accent)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: 'var(--radius-md)',
+              padding: '8px 14px',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 2px 8px var(--accent-glow)',
+            }}
+          >
+            <Plus size={16} /> Add External Agent
+          </button>
         }
       />
 
@@ -78,7 +142,7 @@ export default function AgentsPage() {
           <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input
             type="text"
-            placeholder="Search agents by name..."
+            placeholder="Search agents by name, framework, or team..."
             value={params.search}
             onChange={(e) => updateFilter('search', e.target.value)}
             style={{
@@ -161,21 +225,21 @@ export default function AgentsPage() {
             {[...Array(4)].map((_, i) => <Skeleton key={i} height={44} />)}
           </div>
         ) : !data || data.agents.length === 0 ? (
-          <EmptyState title="No agents found" subtitle="Try adjusting your filters or search terms." />
+          <EmptyState title="No agents found" subtitle="Try adjusting your filters or onboard a new agent." />
         ) : (
           <div className="data-table-wrapper" style={{ border: 'none', borderRadius: 0 }}>
             <table className="data-table">
               <thead>
                 <tr>
-                  <th>Agent Name</th>
-                  <th>Source</th>
+                  <th>Agent & Framework</th>
+                  <th>Connectivity</th>
+                  <th>Environment</th>
                   <th>Type</th>
-                  <th>Status</th>
+                  <th>Admin Status</th>
                   <th>Trust Level</th>
                   <th>Owner Team</th>
                   <th>Capabilities</th>
-                  <th>Credentials</th>
-                  <th>Relationships</th>
+                  <th>Telemetry Events</th>
                   <th></th>
                 </tr>
               </thead>
@@ -187,47 +251,53 @@ export default function AgentsPage() {
                     onClick={() => navigate(`/agents/${agent.id}`)}
                   >
                     <td>
-                      <div style={{ fontWeight: 600 }}>{agent.name}</div>
-                      <div
-                        style={{
+                      <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{agent.name}</div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3 }}>
+                        <span style={{
                           fontSize: '0.6875rem',
-                          color: 'var(--text-muted)',
+                          padding: '1px 5px',
+                          borderRadius: 3,
+                          background: 'var(--bg-elevated)',
+                          border: '1px solid var(--border-default)',
+                          color: 'var(--text-secondary)',
                           fontFamily: 'var(--font-mono)',
-                          marginTop: 2,
-                        }}
-                      >
-                        {agent.id}
+                        }}>
+                          {agent.framework || 'Custom'}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: '0.6875rem',
+                            color: 'var(--text-muted)',
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                        >
+                          {agent.id.slice(0, 8)}…
+                        </span>
                       </div>
                     </td>
                     <td>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <span style={{
-                          display: 'inline-block',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          fontSize: '0.6875rem',
-                          fontWeight: 600,
-                          backgroundColor: agent.source === 'LIVE' ? 'var(--accent)' : 'var(--bg-elevated)',
-                          color: agent.source === 'LIVE' ? '#fff' : 'var(--text-muted)',
-                          width: 'fit-content'
-                        }}>
-                          {agent.source}
-                        </span>
-                        {agent.source === 'LIVE' && (
-                          <span style={{ fontSize: '0.6875rem', color: agent.is_offline ? 'var(--text-muted)' : 'var(--low)' }}>
-                            {formatLastSeen(agent.last_seen_at, agent.is_offline)}
-                          </span>
-                        )}
-                        <span style={{
-                          fontSize: '0.625rem',
-                          color: agent.confidence === 'SELF_REPORTED' ? 'var(--text-muted)' : 'var(--text-secondary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 2
-                        }}>
-                          {agent.confidence === 'SELF_REPORTED' ? 'Self-Reported' : agent.confidence === 'INFERRED' ? 'Inferred' : 'Verified'}
+                        <ConnectionStatusPill status={agent.connection_status} />
+                        <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                          {formatLastSeen(agent.last_heartbeat_at || agent.last_seen_at, agent.connection_status === 'OFFLINE')}
                         </span>
                       </div>
+                    </td>
+                    <td>
+                      <span
+                        style={{
+                          fontSize: '0.75rem',
+                          color:
+                            agent.environment === 'production'
+                              ? 'var(--critical)'
+                              : agent.environment === 'staging'
+                              ? 'var(--medium)'
+                              : 'var(--text-secondary)',
+                          textTransform: 'capitalize',
+                        }}
+                      >
+                        {agent.environment || 'development'}
+                      </span>
                     </td>
                     <td>
                       <span className="agent-type-label">
@@ -249,11 +319,11 @@ export default function AgentsPage() {
                         {agent.capability_count}
                       </span>
                     </td>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
-                      {agent.credential_count}
-                    </td>
-                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
-                      {agent.relationship_count}
+                    <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--accent)' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        <Activity size={12} />
+                        {agent.total_events_count ?? 0}
+                      </span>
                     </td>
                     <td>
                       <ArrowRight size={14} color="var(--text-muted)" />
@@ -271,21 +341,34 @@ export default function AgentsPage() {
         <div style={{ marginTop: 12, display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
           <span>
             <span style={{ color: 'var(--low)', fontWeight: 600 }}>
-              {data.agents.filter((a) => a.status === 'ACTIVE').length}
-            </span>{' '}Active
+              {data.agents.filter((a) => a.connection_status === 'ONLINE').length}
+            </span>{' '}Online
           </span>
           <span>
-            <span style={{ color: 'var(--critical)', fontWeight: 600 }}>
-              {data.agents.filter((a) => a.trust_level === 'CRITICAL').length}
-            </span>{' '}Critical Trust
+            <span style={{ color: 'var(--medium)', fontWeight: 600 }}>
+              {data.agents.filter((a) => a.connection_status === 'STALE').length}
+            </span>{' '}Stale
           </span>
           <span>
-            <span style={{ color: 'var(--high)', fontWeight: 600 }}>
-              {data.agents.filter((a) => a.trust_level === 'HIGH').length}
-            </span>{' '}High Trust
+            <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>
+              {data.agents.filter((a) => a.connection_status === 'OFFLINE' || a.connection_status === 'NEVER_CONNECTED').length}
+            </span>{' '}Offline / Unconnected
+          </span>
+          <span style={{ marginLeft: 'auto' }}>
+            Total Registered: <strong style={{ color: 'var(--text-primary)' }}>{data.total}</strong>
           </span>
         </div>
       )}
+
+      {/* Onboard Wizard Modal */}
+      <OnboardWizardModal
+        isOpen={isOnboardingOpen}
+        onClose={() => setIsOnboardingOpen(false)}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['agents', 'list'] })
+          refetch()
+        }}
+      />
     </div>
   )
 }

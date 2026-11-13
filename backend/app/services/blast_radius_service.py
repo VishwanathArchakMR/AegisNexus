@@ -168,6 +168,9 @@ async def calculate_blast_radius(
                         relationship_type=rel.relationship_type,
                         trust_direction=rel.trust_direction,
                         description=rel.description,
+                        provenance=getattr(rel, "provenance", "SEEDED") or "SEEDED",
+                        interaction_count=getattr(rel, "interaction_count", 0) or 0,
+                        last_interaction_at=rel.last_interaction_at.isoformat() if getattr(rel, "last_interaction_at", None) else None,
                     )
                 )
 
@@ -225,6 +228,9 @@ async def calculate_blast_radius(
                     relationship_type=rel.relationship_type,
                     trust_direction=rel.trust_direction,
                     description=rel.description,
+                    provenance=getattr(rel, "provenance", "SEEDED") or "SEEDED",
+                    interaction_count=getattr(rel, "interaction_count", 0) or 0,
+                    last_interaction_at=rel.last_interaction_at.isoformat() if getattr(rel, "last_interaction_at", None) else None,
                 )
             )
 

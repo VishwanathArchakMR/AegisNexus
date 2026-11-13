@@ -1,8 +1,8 @@
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
-from sqlalchemy import DateTime, String, Text, ForeignKey
+from sqlalchemy import DateTime, String, Text, ForeignKey, Integer, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -46,6 +46,20 @@ class Agent(Base):
     api_key_hash: Mapped[str] = mapped_column(String(255), nullable=True)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
 
+    # Runtime Intelligence & Onboarding Metadata
+    framework: Mapped[str] = mapped_column(String(100), nullable=False, default="custom")
+    environment: Mapped[str] = mapped_column(String(50), nullable=False, default="development")
+    deployment_location: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    tags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    sdk_version: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    api_key_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, default=utc_now)
+    api_key_revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    api_key_status: Mapped[str] = mapped_column(String(20), nullable=False, default="ACTIVE")
+    heartbeat_interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False, default=30)
+    last_heartbeat_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    total_events_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    recent_errors_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=utc_now, onupdate=utc_now
@@ -53,7 +67,11 @@ class Agent(Base):
 
     organization: Mapped["Organization"] = relationship("Organization", back_populates="agents")
     events: Mapped[List["AgentEvent"]] = relationship(
-        "AgentEvent", back_populates="agent", cascade="all, delete-orphan", lazy="select"
+        "AgentEvent",
+        foreign_keys="AgentEvent.agent_id",
+        back_populates="agent",
+        cascade="all, delete-orphan",
+        lazy="select",
     )
 
     capabilities: Mapped[List["AgentCapability"]] = relationship(

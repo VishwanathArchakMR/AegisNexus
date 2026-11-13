@@ -1,0 +1,4 @@
+# For local development within this monorepo, install from ../../sdks/python
+# In production, use: pip install aegisnexus-sdk
+python-dotenv>=1.0.0
+requests>=2.31.0

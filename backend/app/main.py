@@ -2,7 +2,7 @@ import sys
 import asyncio
 import logging
 
-if sys.platform == "win32":
+if sys.platform == "win32" and "pytest" not in sys.modules:
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 from contextlib import asynccontextmanager
@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.logging import setup_logging
 from app.core.error_handlers import register_error_handlers
+from app.core.db_migration import run_sqlite_safe_migrations
 from app.database import Base, engine, close_db_engine
 
 # Import all models so SQLAlchemy registers them with Base.metadata
@@ -45,6 +46,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+            await run_sqlite_safe_migrations(conn)
         logger.info("Database tables initialized successfully.")
 
         if settings.SEED_ON_STARTUP and not settings.is_test:

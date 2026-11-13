@@ -18,7 +18,7 @@ from app.main import app
 BASE = "http://test"
 
 
-@pytest_asyncio.fixture(scope="module")
+@pytest_asyncio.fixture(scope="function")
 async def client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url=BASE) as c:
         yield c

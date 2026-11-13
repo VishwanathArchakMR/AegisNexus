@@ -24,6 +24,9 @@ class GraphEdge(BaseModel):
     relationship_type: str
     trust_direction: str
     description: Optional[str] = None
+    provenance: str = "SEEDED"  # SEEDED | SELF_REPORTED | OBSERVED | VERIFIED
+    interaction_count: int = 0
+    last_interaction_at: Optional[str] = None
 
 
 class BlastRadiusSummary(BaseModel):

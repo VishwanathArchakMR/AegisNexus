@@ -31,7 +31,7 @@ async def override_get_db():
         yield session
 
 
-@pytest_asyncio.fixture(scope="session", autouse=True)
+@pytest_asyncio.fixture(scope="function", autouse=True)
 async def setup_test_db():
     """Ensure database schema is cleanly created and seeded in an isolated test database."""
     app.dependency_overrides[get_db] = override_get_db
@@ -50,7 +50,7 @@ async def setup_test_db():
             pass
 
 
-@pytest_asyncio.fixture(scope="module")
+@pytest_asyncio.fixture(scope="function")
 async def client():
     async with AsyncClient(transport=ASGITransport(app=app), base_url=BASE) as c:
         yield c

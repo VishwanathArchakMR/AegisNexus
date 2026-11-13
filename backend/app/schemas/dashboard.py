@@ -13,14 +13,21 @@ class DashboardSummary(BaseModel):
     total_relationships: int
     agents_requiring_attention: int
     
+    # Connection Health Metrics
+    online_agents: int = 0
+    stale_agents: int = 0
+    offline_agents: int = 0
+
     # Simulation & Findings Metrics
     total_simulations: int
     completed_simulations: int
     average_asr: float
     open_findings: int
     critical_findings: int
+    runtime_findings: int = 0
+    total_runtime_events: int = 0
 
-    # Deterministic placeholder until the risk engine is implemented in Phase 4.
+    # Security Posture
     posture_score: int
     posture_label: str
     posture_status: str

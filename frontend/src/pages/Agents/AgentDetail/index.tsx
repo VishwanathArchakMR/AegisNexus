@@ -14,9 +14,12 @@ import {
   ChevronRight,
   ShieldAlert,
 } from 'lucide-react'
+import { useState } from 'react'
 import { api } from '../../../lib/api'
 import { TrustBadge, StatusBadge, Badge } from '../../../components/ui/Badge'
 import { Skeleton } from '../../../components/ui/Skeleton'
+import { ConnectionHealthCard } from './ConnectionHealthCard'
+import { ActivityTimeline } from './ActivityTimeline'
 import type {
   AgentCapability,
   AgentCredential,
@@ -109,9 +112,16 @@ function SectionHeader({ label, count }: { label: string; count?: number }) {
 // ── Capabilities table ──────────────────────────────────────────────────────
 
 function CapabilitiesSection({ capabilities }: { capabilities: AgentCapability[] }) {
+  const PROVENANCE_CONFIG = {
+    SELF_REPORTED: { color: 'var(--medium)', bg: 'var(--medium-dim)', label: 'Self-Reported' },
+    OBSERVED: { color: 'var(--accent)', bg: 'var(--accent-dim)', label: 'Observed' },
+    VERIFIED: { color: 'var(--low)', bg: 'var(--low-dim)', label: 'Verified' },
+    SEEDED: { color: 'var(--text-muted)', bg: 'var(--bg-elevated)', label: 'Seeded' },
+  }
+
   return (
     <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
-      <SectionHeader label="Capabilities" count={capabilities.length} />
+      <SectionHeader label="Capabilities & Provenance" count={capabilities.length} />
       <div className="data-table-wrapper" style={{ border: 'none', borderRadius: 0 }}>
         <table className="data-table">
           <thead>
@@ -119,44 +129,69 @@ function CapabilitiesSection({ capabilities }: { capabilities: AgentCapability[]
               <th>Capability</th>
               <th>Resource</th>
               <th>Permission</th>
+              <th>Provenance</th>
+              <th>Calls</th>
               <th>Sensitive</th>
               <th>Description</th>
             </tr>
           </thead>
           <tbody>
-            {capabilities.map((cap) => (
-              <tr key={cap.id} style={{ cursor: 'default' }}>
-                <td style={{ fontWeight: 500 }}>{cap.capability_name}</td>
-                <td>
-                  <span style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: '0.75rem',
-                    color: RESOURCE_COLORS[cap.resource_type] ?? 'var(--text-secondary)',
-                  }}>
-                    {cap.resource_type}
-                  </span>
-                </td>
-                <td>
-                  <Badge variant={PERMISSION_VARIANTS[cap.permission_level] ?? 'neutral'}>
-                    {cap.permission_level}
-                  </Badge>
-                </td>
-                <td>
-                  {cap.is_sensitive ? (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--high)' }}>
-                      <AlertTriangle size={12} /> <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Yes</span>
+            {capabilities.map((cap) => {
+              const prov = PROVENANCE_CONFIG[cap.provenance as keyof typeof PROVENANCE_CONFIG] || PROVENANCE_CONFIG.SELF_REPORTED
+              return (
+                <tr key={cap.id} style={{ cursor: 'default' }}>
+                  <td style={{ fontWeight: 500, fontFamily: 'var(--font-mono)', fontSize: '0.8125rem' }}>
+                    {cap.capability_name}
+                  </td>
+                  <td>
+                    <span style={{
+                      fontFamily: 'var(--font-mono)',
+                      fontSize: '0.75rem',
+                      color: RESOURCE_COLORS[cap.resource_type] ?? 'var(--text-secondary)',
+                    }}>
+                      {cap.resource_type}
                     </span>
-                  ) : (
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)' }}>
-                      <CheckCircle2 size={12} /> <span style={{ fontSize: '0.75rem' }}>No</span>
+                  </td>
+                  <td>
+                    <Badge variant={PERMISSION_VARIANTS[cap.permission_level] ?? 'neutral'}>
+                      {cap.permission_level}
+                    </Badge>
+                  </td>
+                  <td>
+                    <span
+                      style={{
+                        fontSize: '0.6875rem',
+                        fontWeight: 600,
+                        padding: '1px 6px',
+                        borderRadius: 3,
+                        background: prov.bg,
+                        color: prov.color,
+                        border: `1px solid ${prov.color}33`,
+                      }}
+                    >
+                      {prov.label}
                     </span>
-                  )}
-                </td>
-                <td style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', maxWidth: 300 }}>
-                  {cap.description ?? '—'}
-                </td>
-              </tr>
-            ))}
+                  </td>
+                  <td style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {cap.call_count ?? 0}
+                  </td>
+                  <td>
+                    {cap.is_sensitive ? (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--high)' }}>
+                        <AlertTriangle size={12} /> <span style={{ fontSize: '0.75rem', fontWeight: 600 }}>Yes</span>
+                      </span>
+                    ) : (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--text-muted)' }}>
+                        <CheckCircle2 size={12} /> <span style={{ fontSize: '0.75rem' }}>No</span>
+                      </span>
+                    )}
+                  </td>
+                  <td style={{ color: 'var(--text-secondary)', fontSize: '0.75rem', maxWidth: 220 }}>
+                    {cap.description ?? '—'}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -288,6 +323,17 @@ function RelationshipsSection({
             }}>
               {direction === 'OUT' ? '→ Outgoing' : '← Incoming'}
             </span>
+            {rel.provenance && (
+              <span style={{
+                fontSize: '0.625rem',
+                color: rel.provenance === 'OBSERVED' ? 'var(--accent)' : 'var(--text-muted)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: 3,
+                padding: '1px 5px',
+              }}>
+                {rel.provenance}
+              </span>
+            )}
           </div>
           {rel.description && (
             <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
@@ -328,11 +374,13 @@ function RelationshipsSection({
 export default function AgentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [activeTab, setActiveTab] = useState<'activity' | 'capabilities' | 'credentials' | 'relationships'>('activity')
 
   const agentQuery = useQuery({
     queryKey: ['agents', id],
     queryFn: () => api.agents.get(id!),
     enabled: !!id,
+    refetchInterval: 10_000,
     retry: (failCount, error) => {
       // Don't retry 404s
       if ((error as { response?: { status: number } }).response?.status === 404) return false
@@ -497,18 +545,81 @@ export default function AgentDetailPage() {
         </div>
       </div>
 
+      {/* ── Connection Health & Key Management ── */}
+      <ConnectionHealthCard agent={agent} onAgentUpdated={() => agentQuery.refetch()} />
+
       {/* ── Main two-column layout ── */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
 
-        {/* Left: Capabilities + Credentials + Relationships */}
+        {/* Left: Tab Navigation + Selected Section */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <CapabilitiesSection capabilities={agent.capabilities} />
-          <CredentialsSection credentials={agent.credentials} />
-          <RelationshipsSection
-            outgoing={agent.outgoing_relationships}
-            incoming={agent.incoming_relationships}
-            agents={agentNameMap}
-          />
+          {/* Tab Selector */}
+          <div
+            style={{
+              display: 'flex',
+              gap: 4,
+              padding: 4,
+              background: 'var(--bg-card)',
+              border: '1px solid var(--border-default)',
+              borderRadius: 8,
+            }}
+          >
+            {[
+              { id: 'activity', label: 'Live Activity Timeline', count: agent.total_events_count },
+              { id: 'capabilities', label: 'Capabilities', count: agent.capabilities.length },
+              { id: 'credentials', label: 'Credentials', count: agent.credentials.length },
+              { id: 'relationships', label: 'Relationships', count: agent.outgoing_relationships.length + agent.incoming_relationships.length },
+            ].map((t) => (
+              <button
+                key={t.id}
+                onClick={() => setActiveTab(t.id as any)}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  padding: '8px 12px',
+                  borderRadius: 6,
+                  border: 'none',
+                  background: activeTab === t.id ? 'var(--accent)' : 'transparent',
+                  color: activeTab === t.id ? '#fff' : 'var(--text-secondary)',
+                  fontWeight: activeTab === t.id ? 600 : 500,
+                  fontSize: '0.8125rem',
+                  cursor: 'pointer',
+                  transition: 'background 0.15s ease, color 0.15s ease',
+                }}
+              >
+                {t.label}
+                {t.count !== undefined && t.count !== null && (
+                  <span
+                    style={{
+                      fontSize: '0.6875rem',
+                      fontFamily: 'var(--font-mono)',
+                      padding: '1px 5px',
+                      borderRadius: 10,
+                      background: activeTab === t.id ? 'rgba(255,255,255,0.25)' : 'var(--bg-elevated)',
+                      color: activeTab === t.id ? '#fff' : 'var(--text-muted)',
+                    }}
+                  >
+                    {t.count}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Tab Content */}
+          {activeTab === 'activity' && <ActivityTimeline agentId={agent.id} />}
+          {activeTab === 'capabilities' && <CapabilitiesSection capabilities={agent.capabilities} />}
+          {activeTab === 'credentials' && <CredentialsSection credentials={agent.credentials} />}
+          {activeTab === 'relationships' && (
+            <RelationshipsSection
+              outgoing={agent.outgoing_relationships}
+              incoming={agent.incoming_relationships}
+              agents={agentNameMap}
+            />
+          )}
         </div>
 
         {/* Right: Blast Radius Assessment */}

@@ -305,13 +305,26 @@ class RecoveryEngine:
         )
         finding = result.scalars().first()
         
-        if not finding or not finding.scenario:
+        if not finding:
+            recovery.status = "FAILED"
+            recovery.verification_status = "FAILED"
+            await RecoveryEngine.record_event(session, recovery.id, "VERIFICATION_FAILED", "Finding not found.")
+            return recovery
+            
+        scenario = finding.scenario
+        if not scenario:
+            # Fallback for runtime detection findings: resolve scenario by finding_type
+            scenario = await session.scalar(
+                select(AttackScenario).where(AttackScenario.attack_type == finding.finding_type)
+            )
+            if not scenario:
+                scenario = await session.scalar(select(AttackScenario).limit(1))
+
+        if not scenario:
             recovery.status = "FAILED"
             recovery.verification_status = "FAILED"
             await RecoveryEngine.record_event(session, recovery.id, "VERIFICATION_FAILED", "Missing original scenario or finding.")
             return recovery
-            
-        scenario = finding.scenario
         
         # Load agent fully
         result = await session.execute(

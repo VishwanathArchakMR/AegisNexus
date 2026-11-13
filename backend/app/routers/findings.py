@@ -17,6 +17,7 @@ async def list_findings(
     status: Optional[str] = Query(None),
     agent_id: Optional[str] = Query(None),
     finding_type: Optional[str] = Query(None),
+    source_type: Optional[str] = Query(None),
     db: AsyncSession = Depends(get_db)
 ):
     stmt = select(AgentFinding).options(selectinload(AgentFinding.agent)).order_by(AgentFinding.created_at.desc())
@@ -29,6 +30,8 @@ async def list_findings(
         stmt = stmt.where(AgentFinding.agent_id == agent_id)
     if finding_type:
         stmt = stmt.where(AgentFinding.finding_type == finding_type)
+    if source_type:
+        stmt = stmt.where(AgentFinding.source_type == source_type)
 
     result = await db.scalars(stmt)
     return result.all()

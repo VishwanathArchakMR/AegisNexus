@@ -187,34 +187,43 @@ function computeLayout(
 }
 
 function computeEdges(apiEdges: BlastRadiusEdge[]): Edge[] {
-  return apiEdges.map((e) => ({
-    id: e.id,
-    source: e.source,
-    target: e.target,
-    label: e.relationship_type,
-    labelStyle: {
-      fontSize: 9,
-      fontFamily: 'JetBrains Mono, monospace',
-      fontWeight: 700,
-      fill: REL_COLORS[e.relationship_type] ?? '#6b7280',
-    },
-    labelBgStyle: { fill: '#0d1226', fillOpacity: 0.9 },
-    labelBgPadding: [3, 5] as [number, number],
-    labelBgBorderRadius: 3,
-    animated: !e.id.startsWith('in-'),
-    style: {
-      stroke: REL_COLORS[e.relationship_type] ?? '#4a5568',
-      strokeWidth: e.id.startsWith('in-') ? 1.5 : 2,
-      strokeDasharray: e.id.startsWith('in-') ? '5 4' : undefined,
-    },
-    markerEnd: {
-      type: MarkerType.ArrowClosed,
-      color: REL_COLORS[e.relationship_type] ?? '#4a5568',
-      width: 16,
-      height: 16,
-    },
-    type: 'smoothstep',
-  }))
+  return apiEdges.map((e) => {
+    const isObserved = (e as any).provenance === 'OBSERVED'
+    const interactionCount = (e as any).interaction_count
+    let labelText: string = e.relationship_type
+    if (isObserved) {
+      labelText = interactionCount ? `${e.relationship_type} (${interactionCount}x)` : `${e.relationship_type} (OBSERVED)`
+    }
+
+    return {
+      id: e.id,
+      source: e.source,
+      target: e.target,
+      label: labelText,
+      labelStyle: {
+        fontSize: 9,
+        fontFamily: 'JetBrains Mono, monospace',
+        fontWeight: 700,
+        fill: isObserved ? '#60a5fa' : (REL_COLORS[e.relationship_type] ?? '#6b7280'),
+      },
+      labelBgStyle: { fill: '#0d1226', fillOpacity: 0.9 },
+      labelBgPadding: [3, 5] as [number, number],
+      labelBgBorderRadius: 3,
+      animated: !e.id.startsWith('in-') || isObserved,
+      style: {
+        stroke: isObserved ? '#3b82f6' : (REL_COLORS[e.relationship_type] ?? '#4a5568'),
+        strokeWidth: isObserved ? 2.5 : e.id.startsWith('in-') ? 1.5 : 2,
+        strokeDasharray: isObserved ? '4 2' : e.id.startsWith('in-') ? '5 4' : undefined,
+      },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: isObserved ? '#3b82f6' : (REL_COLORS[e.relationship_type] ?? '#4a5568'),
+        width: 16,
+        height: 16,
+      },
+      type: 'smoothstep',
+    }
+  })
 }
 
 // ── Detail panel ───────────────────────────────────────────────────────────

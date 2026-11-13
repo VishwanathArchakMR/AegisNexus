@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite+aiosqlite:///./aegisnexus.db"
     SEED_ON_STARTUP: bool = True
 
+    # Telemetry and Health Monitoring Settings
+    DEFAULT_HEARTBEAT_INTERVAL_SECONDS: int = 30
+    HEARTBEAT_STALE_THRESHOLD_SECONDS: int = 60
+    HEARTBEAT_OFFLINE_THRESHOLD_SECONDS: int = 90
+    MAX_EVENT_BATCH_SIZE: int = 50
+    MAX_PAYLOAD_SIZE_BYTES: int = 65536
+    OPERATOR_API_KEY: str = "dev-operator-key-aegisnexus"
+
     # Security settings
     SECRET_KEY: str = "insecure-dev-secret-key-change-in-production"
     CORS_ORIGINS: Union[List[str], str] = [

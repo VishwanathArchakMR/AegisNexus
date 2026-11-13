@@ -13,9 +13,12 @@ class AgentFindingBase(BaseModel):
     severity: str
     status: str
     evidence: str
-    affected_capability: Optional[str]
+    affected_capability: Optional[str] = None
     recommendation: str
     risk_families: list[str] = []
+    source_type: str = "SIMULATION"  # SIMULATION | RUNTIME_DETECTION | ADMINISTRATIVE
+    event_id: Optional[str] = None
+    detection_rule: Optional[str] = None
 
 
 class AgentFindingSummary(AgentFindingBase):

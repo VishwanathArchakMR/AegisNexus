@@ -41,7 +41,7 @@ export default function FindingsPage() {
     <div>
       <PageHeader
         title="Security Findings"
-        subtitle="Auto-generated vulnerabilities and risk exposures identified during attack simulations."
+        subtitle="Vulnerabilities, policy violations, and runtime anomalies identified from attack simulations and continuous telemetry monitoring."
       />
 
       {error && (
@@ -67,10 +67,11 @@ export default function FindingsPage() {
               <thead>
                 <tr>
                   <th>Finding Title</th>
+                  <th>Source</th>
                   <th>Severity</th>
                   <th>Status</th>
                   <th>Target Agent</th>
-                  <th>Type</th>
+                  <th>Type / Rule</th>
                   <th>Evaluation Scope</th>
                   <th>Identified On</th>
                   <th></th>
@@ -88,6 +89,31 @@ export default function FindingsPage() {
                         <span style={{ fontWeight: 500 }}>{finding.title}</span>
                       </div>
                     </td>
+                    <td>
+                      <span
+                        style={{
+                          padding: '2px 6px',
+                          borderRadius: 4,
+                          fontSize: '0.6875rem',
+                          fontWeight: 600,
+                          background:
+                            finding.source_type === 'RUNTIME_DETECTION'
+                              ? 'var(--accent-dim)'
+                              : 'var(--bg-elevated)',
+                          color:
+                            finding.source_type === 'RUNTIME_DETECTION'
+                              ? 'var(--accent-light)'
+                              : 'var(--text-muted)',
+                          border: `1px solid ${
+                            finding.source_type === 'RUNTIME_DETECTION'
+                              ? 'var(--border-accent)'
+                              : 'var(--border-default)'
+                          }`,
+                        }}
+                      >
+                        {finding.source_type === 'RUNTIME_DETECTION' ? 'RUNTIME' : 'SIMULATION'}
+                      </span>
+                    </td>
                     <td><ImpactBadge level={finding.severity} riskFamilies={finding.risk_families} /></td>
                     <td>
                       <span style={{
@@ -100,9 +126,16 @@ export default function FindingsPage() {
                     </td>
                     <td>{finding.agent.name}</td>
                     <td>
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                        {finding.finding_type}
-                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                          {finding.finding_type}
+                        </span>
+                        {finding.detection_rule && (
+                          <span style={{ fontSize: '0.6875rem', color: 'var(--accent)', fontFamily: 'var(--font-mono)' }}>
+                            {finding.detection_rule}
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td>
                       <EvaluationBadge level={finding.evaluation_level || 'per-full-task'} />

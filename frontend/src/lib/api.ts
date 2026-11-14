@@ -134,5 +134,7 @@ export const api = {
       httpClient.post(`/recovery/${id}/revalidate`, data).then((r) => r.data),
     events: (id: string): Promise<import('../types').RecoveryEvent[]> =>
       httpClient.get(`/recovery/${id}/events`).then((r) => r.data),
+    verifyChain: (id: string): Promise<import('../types').ChainVerificationResponse> =>
+      httpClient.get(`/recovery/${id}/verify-chain`).then((r) => r.data),
   }
 }

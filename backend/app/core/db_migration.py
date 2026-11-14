@@ -46,6 +46,9 @@ COLUMNS_TO_ENSURE = [
     ("agent_findings", "detection_rule", "VARCHAR(100)"),
 
     ("recovery_records", "runtime_revalidation_notes", "TEXT"),
+
+    ("recovery_events", "previous_hash", "VARCHAR(64)"),
+    ("recovery_events", "event_hash", "VARCHAR(64)"),
 ]
 
 

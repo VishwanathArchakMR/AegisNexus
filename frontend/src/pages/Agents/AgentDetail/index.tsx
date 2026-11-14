@@ -17,6 +17,7 @@ import {
 import { useState } from 'react'
 import { api } from '../../../lib/api'
 import { TrustBadge, StatusBadge, Badge } from '../../../components/ui/Badge'
+import { ConnectionStatusPill } from '../../../components/ui/ConnectionStatusPill'
 import { Skeleton } from '../../../components/ui/Skeleton'
 import { ConnectionHealthCard } from './ConnectionHealthCard'
 import { ActivityTimeline } from './ActivityTimeline'
@@ -487,9 +488,40 @@ export default function AgentDetailPage() {
               </p>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-            <TrustBadge level={agent.trust_level} />
-            <StatusBadge status={agent.status} />
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                Admin State:
+              </span>
+              <StatusBadge status={agent.status} />
+              <TrustBadge level={agent.trust_level} />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                Connectivity:
+              </span>
+              <ConnectionStatusPill status={agent.connection_status} />
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 600 }}>
+                Credential:
+              </span>
+              <Badge
+                variant={
+                  agent.api_key_status === 'ACTIVE'
+                    ? 'low'
+                    : agent.api_key_status === 'ROTATED'
+                    ? 'medium'
+                    : agent.api_key_status === 'REVOKED'
+                    ? 'critical'
+                    : 'neutral'
+                }
+              >
+                {agent.api_key_status || 'SEEDED'}
+              </Badge>
+            </div>
           </div>
         </div>
 

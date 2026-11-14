@@ -24,6 +24,7 @@ class DashboardSummary(BaseModel):
     average_asr: float
     open_findings: int
     critical_findings: int
+    high_findings: int = 0
     runtime_findings: int = 0
     total_runtime_events: int = 0
 

@@ -139,6 +139,7 @@ export interface DashboardSummary {
   average_asr: number
   open_findings: number
   critical_findings: number
+  high_findings?: number
 
   posture_score: number
   posture_label: string
@@ -369,8 +370,20 @@ export interface RecoveryEvent {
   event_type: string;
   actor: string;
   message: string;
+  previous_hash?: string | null;
+  event_hash?: string | null;
   metadata_json?: Record<string, any>;
   created_at: string;
+}
+
+export interface ChainVerificationResponse {
+  recovery_record_id: string;
+  is_valid: boolean;
+  total_events: number;
+  tamper_detected: boolean;
+  first_invalid_event_id?: string | null;
+  reason?: string | null;
+  verified_at: string;
 }
 
 export interface RecoveryRecord {
@@ -414,6 +427,7 @@ export interface RecoverySummary {
   failed: number;
   reopened: number;
   average_asr_reduction: number;
+  awaiting_revalidation?: number;
   high_residual_risk_count: number;
   critical_residual_risk_count: number;
 }

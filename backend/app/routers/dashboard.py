@@ -89,6 +89,14 @@ async def get_dashboard_summary(
         )
     ) or 0
 
+    high_findings = (
+        await db.scalar(
+            select(func.count(AgentFinding.id)).where(
+                AgentFinding.status == "OPEN", AgentFinding.severity == "HIGH"
+            )
+        )
+    ) or 0
+
     runtime_findings = (
         await db.scalar(
             select(func.count(AgentFinding.id)).where(
@@ -167,6 +175,7 @@ async def get_dashboard_summary(
         average_asr=average_asr,
         open_findings=open_findings,
         critical_findings=critical_findings,
+        high_findings=high_findings,
         runtime_findings=runtime_findings,
         total_runtime_events=total_runtime_events,
         posture_score=posture_score,

@@ -176,8 +176,54 @@ export default function FindingDetailPage() {
               </div>
 
               <div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Provenance Source</div>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    borderRadius: 4,
+                    fontSize: '0.6875rem',
+                    fontWeight: 700,
+                    fontFamily: 'var(--font-mono)',
+                    background: data.source_type === 'RUNTIME_DETECTION' ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+                    color: data.source_type === 'RUNTIME_DETECTION' ? 'var(--accent-light)' : 'var(--text-muted)',
+                    border: `1px solid ${data.source_type === 'RUNTIME_DETECTION' ? 'var(--border-accent)' : 'var(--border-default)'}`,
+                  }}
+                >
+                  {data.source_type === 'RUNTIME_DETECTION' ? 'RUNTIME TELEMETRY' : 'SIMULATION'}
+                </span>
+              </div>
+
+              {data.detection_rule && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Detection Rule</div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--accent-light)' }}>
+                    {data.detection_rule}
+                  </div>
+                </div>
+              )}
+
+              {data.event_id && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Source Event ID</div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    {data.event_id}
+                  </div>
+                </div>
+              )}
+
+              {data.affected_capability && (
+                <div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Affected Tool / Capability</div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
+                    {data.affected_capability}
+                  </div>
+                </div>
+              )}
+
+              <div>
                 <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>Target Agent</div>
-                <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+                <div style={{ fontSize: '0.875rem', color: 'var(--accent-light)', cursor: 'pointer' }} onClick={() => navigate(`/agents/${data.agent.id}`)}>
                   {data.agent.name}
                 </div>
               </div>

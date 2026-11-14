@@ -1,154 +1,333 @@
-import { Link } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
+import {
+  ShieldCheck,
+  TrendingDown,
+  CheckCircle2,
+  Clock,
+  RefreshCw,
+  AlertTriangle,
+  ArrowRight,
+  Shield,
+} from 'lucide-react'
 import { api } from '../../lib/api'
+import { PageHeader } from '../../components/layout/PageHeader'
+import { MetricCard } from '../../components/ui/MetricCard'
+import { Skeleton } from '../../components/ui/Skeleton'
+import { EmptyState } from '../../components/ui/EmptyState'
+import { RecoveryStatusBadge, SourceBadge, Badge } from '../../components/ui/Badge'
+import type { RecoveryRecord, AgentSummary } from '../../types'
 
 export default function Recovery() {
-  const { data: summary, isLoading: isSummaryLoading } = useQuery({
+  const navigate = useNavigate()
+  const [isRefreshing, setIsRefreshing] = useState(false)
+
+  const {
+    data: summary,
+    isLoading: isSummaryLoading,
+    error: summaryError,
+    refetch: refetchSummary,
+  } = useQuery({
     queryKey: ['recovery', 'summary'],
     queryFn: () => api.recovery.summary(),
   })
 
-  const { data: records, isLoading: isRecordsLoading } = useQuery({
+  const {
+    data: records,
+    isLoading: isRecordsLoading,
+    error: recordsError,
+    refetch: refetchRecords,
+  } = useQuery({
     queryKey: ['recovery', 'list'],
     queryFn: () => api.recovery.list(),
   })
 
+  const { data: agentData } = useQuery({
+    queryKey: ['agents', 'list'],
+    queryFn: () => api.agents.list(),
+  })
+
+  const agentMap = (agentData?.agents ?? []).reduce<Record<string, string>>((acc, a: AgentSummary) => {
+    acc[a.id] = a.name
+    return acc
+  }, {})
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    await Promise.all([refetchSummary(), refetchRecords()])
+    setIsRefreshing(false)
+  }
+
+  const pendingVerificationCount =
+    (summary?.planned ?? 0) +
+    (summary?.approval_required ?? 0) +
+    (summary?.executing ?? 0) +
+    (summary?.awaiting_revalidation ?? 0)
+
   return (
-    <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Recovery & Remediation Ledger</h1>
-          <p className="text-gray-400">
-            Track deterministic, sandbox-only security remediations and verify their impact on the attack success rate.
-          </p>
+    <div>
+      <PageHeader
+        title="Recovery & Remediation Ledger"
+        subtitle="Track deterministic security remediations, verify recovery outcomes and maintain tamper-evident evidence."
+        actions={
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="btn btn-secondary btn-sm"
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            <RefreshCw size={14} className={isRefreshing ? 'animate-spin' : ''} />
+            Refresh Ledger
+          </button>
+        }
+      />
+
+      {/* Error state */}
+      {(summaryError || recordsError) && (
+        <div className="error-state" style={{ marginBottom: 24 }}>
+          <AlertTriangle size={16} />
+          <span>
+            Failed to communicate with recovery ledger endpoints. Ensure the backend API is active on port 8000.
+          </span>
+        </div>
+      )}
+
+      {/* ── Summary Metric Cards ── */}
+      <div className="grid-4" style={{ marginBottom: 24 }}>
+        <MetricCard
+          icon={<ShieldCheck size={18} color="var(--accent-light)" />}
+          iconBg="var(--accent-dim)"
+          value={isSummaryLoading ? '—' : (summary?.total_recovery_records ?? 0)}
+          label="Total Ledgers"
+          sub="Tracked remediation plans"
+          accent="var(--accent)"
+        />
+
+        <MetricCard
+          icon={<TrendingDown size={18} color="var(--low)" />}
+          iconBg="var(--low-dim)"
+          value={
+            isSummaryLoading
+              ? '—'
+              : `+${(summary?.average_asr_reduction ?? 0).toFixed(1)} pts`
+          }
+          label="Avg. ASR Reduction"
+          sub="Percentage points reduction"
+          accent="var(--low)"
+        />
+
+        <MetricCard
+          icon={<CheckCircle2 size={18} color="var(--low)" />}
+          iconBg="var(--low-dim)"
+          value={isSummaryLoading ? '—' : (summary?.recovered ?? 0)}
+          label="Successfully Recovered"
+          sub="Hardened & empirically verified"
+          accent="var(--low)"
+        />
+
+        <MetricCard
+          icon={<Clock size={18} color="var(--high)" />}
+          iconBg="var(--high-dim)"
+          value={isSummaryLoading ? '—' : pendingVerificationCount}
+          label="Pending Verification"
+          sub="Awaiting operator or re-test"
+          accent="var(--high)"
+        />
+      </div>
+
+      {/* ── Recovery Records Table ── */}
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+        <div
+          style={{
+            padding: '16px 20px',
+            borderBottom: '1px solid var(--border-default)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontSize: '0.875rem',
+                fontWeight: 600,
+                color: 'var(--text-primary)',
+              }}
+            >
+              Remediation Ledgers & Attestation History
+            </div>
+            <div
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--text-muted)',
+                marginTop: 2,
+              }}
+            >
+              Cryptographically chained recovery events with deterministic baseline verification
+            </div>
+          </div>
+          <span className="badge badge-neutral">
+            {records?.length ?? 0} {records?.length === 1 ? 'Record' : 'Records'}
+          </span>
         </div>
 
-        {/* Dashboard Summary Panels */}
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
-            <dt className="text-sm font-medium text-gray-400">Total Ledgers</dt>
-            <dd className="mt-2 text-3xl font-bold text-white">
-              {isSummaryLoading ? '...' : summary?.total_recovery_records ?? 0}
-            </dd>
+        {isRecordsLoading ? (
+          <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {[...Array(4)].map((_, i) => (
+              <Skeleton key={i} height={44} />
+            ))}
           </div>
-          <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
-            <dt className="text-sm font-medium text-gray-400">Avg. ASR Reduction</dt>
-            <dd className="mt-2 text-3xl font-bold text-cyan-400">
-              {isSummaryLoading ? '...' : `+${(summary?.average_asr_reduction ?? 0).toFixed(1)} pts`}
-            </dd>
-            <span className="text-xs text-gray-400 mt-1 block">percentage points</span>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
-            <dt className="text-sm font-medium text-gray-400">Recovered</dt>
-            <dd className="mt-2 text-3xl font-bold text-emerald-400">
-              {isSummaryLoading ? '...' : summary?.recovered ?? 0}
-            </dd>
-          </div>
-          <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
-            <dt className="text-sm font-medium text-gray-400">Pending Verification</dt>
-            <dd className="mt-2 text-3xl font-bold text-amber-400">
-              {isSummaryLoading ? '...' : (summary?.planned ?? 0) + (summary?.approval_required ?? 0) + (summary?.executing ?? 0)}
-            </dd>
-          </div>
-        </div>
-
-        {/* Records Table */}
-        <div className="rounded-xl border border-white/10 bg-black/40 backdrop-blur-md overflow-hidden">
-          <div className="px-6 py-4 border-b border-white/10">
-            <h2 className="text-lg font-medium text-white">Recovery Records</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-gray-300">
-              <thead className="bg-white/5 text-xs uppercase text-gray-400">
+        ) : !records || records.length === 0 ? (
+          <EmptyState
+            title="No recovery records found"
+            subtitle="Recovery plans are generated from detected security findings. Run simulations or inspect findings to initiate recovery."
+          />
+        ) : (
+          <div className="data-table-wrapper" style={{ border: 'none', borderRadius: 0 }}>
+            <table className="data-table">
+              <thead>
                 <tr>
-                  <th className="px-6 py-4 font-medium">Record ID</th>
-                  <th className="px-6 py-4 font-medium">Remediation Type</th>
-                  <th className="px-6 py-4 font-medium">Status</th>
-                  <th className="px-6 py-4 font-medium">ASR Change</th>
-                  <th className="px-6 py-4 font-medium">Residual Risk</th>
+                  <th>Record ID</th>
+                  <th>Target Agent</th>
+                  <th>Remediation Type</th>
+                  <th>Source</th>
+                  <th>Status</th>
+                  <th>Previous ASR</th>
+                  <th>Current ASR</th>
+                  <th>ASR Reduction</th>
+                  <th>Residual Risk</th>
+                  <th>Verification</th>
+                  <th style={{ textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/10">
-                {isRecordsLoading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      Loading recovery records...
-                    </td>
-                  </tr>
-                ) : records?.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-gray-500">
-                      No recovery records found. Create one from a security finding.
-                    </td>
-                  </tr>
-                ) : (
-                  records?.map((record) => (
+              <tbody>
+                {records.map((record: RecoveryRecord) => {
+                  const isRuntime =
+                    record.previous_asr == null && record.verification_execution_id == null
+                  const shortId = record.id.split('-')[0]
+                  const agentName = agentMap[record.agent_id] || record.agent_id.split('-')[0]
+
+                  const asrReduction =
+                    record.previous_asr != null && record.current_asr != null
+                      ? (record.previous_asr - record.current_asr).toFixed(1)
+                      : null
+
+                  return (
                     <tr
                       key={record.id}
-                      className="transition-colors hover:bg-white/5"
+                      onClick={() => navigate(`/recovery/${record.id}`)}
+                      style={{ cursor: 'pointer' }}
                     >
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Link
-                          to={`/recovery/${record.id}`}
-                          className="font-mono text-cyan-400 hover:text-cyan-300"
-                        >
-                          {record.id.split('-')[0]}
-                        </Link>
+                      <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--accent-light)' }}>
+                        {shortId}
                       </td>
-                      <td className="px-6 py-4">
-                        <span className="inline-flex items-center rounded-md bg-white/10 px-2.5 py-1 text-xs font-medium text-white">
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Shield size={14} color="var(--text-muted)" />
+                          <span style={{ fontWeight: 500 }}>{agentName}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: 'var(--radius-sm)',
+                            background: 'var(--bg-elevated)',
+                            color: 'var(--text-secondary)',
+                            fontSize: '0.6875rem',
+                            fontWeight: 600,
+                            fontFamily: 'var(--font-mono)',
+                          }}
+                        >
                           {record.remediation_type || 'Unplanned'}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ${
-                          record.status === 'RECOVERED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                          record.status === 'FAILED' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                          'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                        }`}>
-                          {record.status}
+                      <td>
+                        <SourceBadge source={isRuntime ? 'RUNTIME_DETECTION' : 'SIMULATION'} />
+                      </td>
+                      <td>
+                        <RecoveryStatusBadge status={record.status} />
+                      </td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>
+                        {record.previous_asr != null ? `${record.previous_asr.toFixed(1)}%` : '—'}
+                      </td>
+                      <td style={{ fontFamily: 'var(--font-mono)' }}>
+                        {record.current_asr != null ? `${record.current_asr.toFixed(1)}%` : '—'}
+                      </td>
+                      <td>
+                        {asrReduction != null ? (
+                          <span
+                            style={{
+                              fontFamily: 'var(--font-mono)',
+                              fontWeight: 600,
+                              color: Number(asrReduction) > 0 ? 'var(--low)' : 'var(--text-muted)',
+                            }}
+                          >
+                            +{asrReduction} pts
+                          </span>
+                        ) : isRuntime && record.status === 'RECOVERED' ? (
+                          <span style={{ fontSize: '0.6875rem', color: 'var(--accent-light)', fontWeight: 600 }}>
+                            Attested
+                          </span>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {record.residual_risk ? (
+                          <Badge
+                            variant={
+                              record.residual_risk === 'LOW'
+                                ? 'low'
+                                : record.residual_risk === 'MEDIUM'
+                                ? 'medium'
+                                : record.residual_risk === 'HIGH'
+                                ? 'high'
+                                : 'critical'
+                            }
+                          >
+                            {record.residual_risk}
+                          </Badge>
+                        ) : (
+                          <span style={{ color: 'var(--text-muted)' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        <span
+                          style={{
+                            fontSize: '0.75rem',
+                            fontWeight: 500,
+                            color:
+                              record.verification_status === 'PASSED'
+                                ? 'var(--low)'
+                                : record.verification_status === 'FAILED'
+                                ? 'var(--critical)'
+                                : 'var(--text-muted)',
+                          }}
+                        >
+                          {record.verification_status || 'PENDING'}
                         </span>
                       </td>
-                      <td className="px-6 py-4">
-                        {record.previous_asr != null && record.current_asr != null ? (
-                          <span className="flex items-center gap-1.5 font-mono text-xs">
-                            <span className="text-gray-400">{record.previous_asr.toFixed(1)}%</span>
-                            <span className="text-gray-500">→</span>
-                            <span className={record.current_asr < record.previous_asr ? 'text-emerald-400 font-semibold' : 'text-red-400'}>
-                              {record.current_asr.toFixed(1)}%
-                            </span>
-                            <span className="text-emerald-400/90 ml-1">
-                              (+{(record.previous_asr - record.current_asr).toFixed(1)} pts)
-                            </span>
-                          </span>
-                        ) : record.status === 'RECOVERED' && record.previous_asr == null ? (
-                          <span className="text-cyan-400 font-mono text-xs">Runtime Revalidated</span>
-                        ) : record.status === 'AWAITING_RUNTIME_REVALIDATION' ? (
-                          <span className="text-amber-400 font-mono text-xs">Awaiting Attestation</span>
-                        ) : (
-                          <span className="text-gray-500 text-xs">Pending Execution</span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4">
-                        {record.residual_risk ? (
-                           <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ${
-                            record.residual_risk === 'CRITICAL' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                            record.residual_risk === 'HIGH' ? 'bg-orange-500/10 text-orange-400 border border-orange-500/20' :
-                            record.residual_risk === 'MEDIUM' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' :
-                            'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          }`}>
-                            {record.residual_risk}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">-</span>
-                        )}
+                      <td style={{ textAlign: 'right' }}>
+                        <Link
+                          to={`/recovery/${record.id}`}
+                          className="link-btn"
+                          onClick={(e) => e.stopPropagation()}
+                          style={{ justifyContent: 'flex-end' }}
+                        >
+                          View Ledger <ArrowRight size={12} />
+                        </Link>
                       </td>
                     </tr>
-                  ))
-                )}
+                  )
+                })}
               </tbody>
             </table>
           </div>
-        </div>
+        )}
+      </div>
     </div>
   )
 }

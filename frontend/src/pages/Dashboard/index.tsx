@@ -32,6 +32,16 @@ export default function DashboardPage() {
     queryFn: () => api.agents.list(),
   })
 
+  const { data: recoverySummary } = useQuery({
+    queryKey: ['recovery', 'summary'],
+    queryFn: () => api.recovery.summary(),
+  })
+
+  const { data: complianceSummary } = useQuery({
+    queryKey: ['compliance', 'summary'],
+    queryFn: () => api.compliance.summary(),
+  })
+
   // Derive posture color
   const postureColor =
     !summary ? 'var(--text-muted)'
@@ -82,23 +92,31 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Total Agents */}
+        {/* Total Agents & Connectivity */}
         <MetricCard
           icon={<Bot size={18} color="var(--accent-light)" />}
           iconBg="var(--accent-dim)"
           value={summaryLoading ? '—' : (summary?.total_agents ?? 0)}
           label="AI Agents"
-          sub={summaryLoading ? undefined : `${summary?.active_agents} active · ${summary?.inactive_agents} inactive · ${summary?.quarantined_agents} quarantined`}
+          sub={
+            summaryLoading
+              ? undefined
+              : `${summary?.active_agents} active · ${summary?.online_agents ?? 0} online · ${summary?.offline_agents ?? 0} offline`
+          }
           accent="var(--accent)"
         />
 
-        {/* Sensitive Capabilities */}
+        {/* Open Vulnerabilities & Detections */}
         <MetricCard
           icon={<Lock size={18} color="var(--high)" />}
           iconBg="var(--high-dim)"
-          value={summaryLoading ? '—' : (summary?.sensitive_capabilities ?? 0)}
-          label="Sensitive Capabilities"
-          sub={summaryLoading ? undefined : `of ${summary?.total_capabilities} total · ${summary?.total_relationships} relationships`}
+          value={summaryLoading ? '—' : (summary?.open_findings ?? 0)}
+          label="Open Findings"
+          sub={
+            summaryLoading
+              ? undefined
+              : `${summary?.critical_findings ?? 0} critical · ${summary?.high_findings ?? 0} high · ${summary?.runtime_findings ?? 0} runtime`
+          }
           accent="var(--high)"
         />
 
@@ -115,7 +133,11 @@ export default function DashboardPage() {
 
       {/* ── Pipeline bar ── */}
       <div style={{ marginBottom: 24 }}>
-        <PipelineBar />
+        <PipelineBar
+          summary={summary}
+          recoverySummary={recoverySummary}
+          complianceSummary={complianceSummary}
+        />
       </div>
 
       {/* ── Agent inventory preview ── */}

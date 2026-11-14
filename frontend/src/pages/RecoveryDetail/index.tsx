@@ -1,9 +1,19 @@
 import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import {
+  ArrowLeft,
+  CheckCircle2,
+  AlertTriangle,
+  FileCheck,
+} from 'lucide-react'
 import { api } from '../../lib/api'
 import ReactFlow, { Background, Controls, Node, Edge, MarkerType } from 'reactflow'
 import 'reactflow/dist/style.css'
+import { PageHeader } from '../../components/layout/PageHeader'
+import { Skeleton } from '../../components/ui/Skeleton'
+import { RecoveryStatusBadge, SourceBadge, Badge } from '../../components/ui/Badge'
+import type { RecoveryEvent } from '../../types'
 
 export default function RecoveryDetail() {
   const { id } = useParams<{ id: string }>()
@@ -14,15 +24,21 @@ export default function RecoveryDetail() {
   const [rationale, setRationale] = useState('')
   const [evidenceNotes, setEvidenceNotes] = useState('')
 
-  const { data: record, isLoading } = useQuery({
+  const { data: record, isLoading: isRecordLoading } = useQuery({
     queryKey: ['recovery', id],
     queryFn: () => api.recovery.get(id!),
     enabled: !!id,
   })
 
-  const { data: events } = useQuery({
+  const { data: events, isLoading: isEventsLoading } = useQuery({
     queryKey: ['recovery', id, 'events'],
     queryFn: () => api.recovery.events(id!),
+    enabled: !!id,
+  })
+
+  const { data: ledgerVerification, refetch: verifyLedger, isFetching: isVerifyingLedger } = useQuery({
+    queryKey: ['recovery', id, 'verify-ledger'],
+    queryFn: () => api.recovery.verifyChain(id!),
     enabled: !!id,
   })
 
@@ -67,278 +83,533 @@ export default function RecoveryDetail() {
       setEvidenceNotes('')
       queryClient.invalidateQueries({ queryKey: ['recovery', id] })
       queryClient.invalidateQueries({ queryKey: ['recovery', id, 'events'] })
+      queryClient.invalidateQueries({ queryKey: ['recovery', id, 'verify-ledger'] })
     },
   })
 
-  if (isLoading || !record) {
+  if (isRecordLoading || !record) {
     return (
-      <div className="flex items-center justify-center h-64 text-gray-400">Loading ledger...</div>
+      <div>
+        <PageHeader title="Recovery Ledger Detail" subtitle="Loading recovery record..." />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <Skeleton height={120} />
+          <Skeleton height={300} />
+        </div>
+      </div>
     )
   }
 
   const isRuntimeFinding = record.previous_asr == null && record.verification_execution_id == null
+  const shortId = record.id.split('-')[0]
 
   // Flow Graph nodes adapting based on finding provenance
   const nodes: Node[] = [
     {
       id: 'finding',
-      position: { x: 50, y: 50 },
+      position: { x: 30, y: 40 },
       data: { label: isRuntimeFinding ? 'Runtime Finding' : 'Simulation Finding' },
-      style: { background: '#1f2937', color: 'white', border: '1px solid #374151', borderRadius: '8px' }
+      style: {
+        background: 'var(--bg-elevated)',
+        color: 'var(--text-primary)',
+        border: '1px solid var(--border-strong)',
+        borderRadius: 8,
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        padding: '8px 12px',
+      },
     },
     {
       id: 'plan',
-      position: { x: 260, y: 50 },
+      position: { x: 220, y: 40 },
       data: { label: 'Plan Created' },
-      style: { background: record.status !== 'OPEN' ? '#0d9488' : '#1f2937', color: 'white', border: '1px solid #14b8a6', borderRadius: '8px' }
+      style: {
+        background: record.status !== 'OPEN' ? 'var(--accent-dim)' : 'var(--bg-elevated)',
+        color: record.status !== 'OPEN' ? 'var(--accent-light)' : 'var(--text-muted)',
+        border: `1px solid ${record.status !== 'OPEN' ? 'var(--accent)' : 'var(--border-strong)'}`,
+        borderRadius: 8,
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        padding: '8px 12px',
+      },
     },
     {
       id: 'approve',
-      position: { x: 470, y: 50 },
+      position: { x: 410, y: 40 },
       data: { label: 'Approved' },
-      style: { background: ['APPROVED', 'VERIFYING', 'AWAITING_RUNTIME_REVALIDATION', 'RECOVERED', 'PARTIALLY_RECOVERED', 'FAILED'].includes(record.status) ? '#0d9488' : '#1f2937', color: 'white', border: '1px solid #14b8a6', borderRadius: '8px' }
+      style: {
+        background:
+          ['APPROVED', 'VERIFYING', 'AWAITING_RUNTIME_REVALIDATION', 'RECOVERED', 'PARTIALLY_RECOVERED', 'FAILED'].includes(
+            record.status
+          )
+            ? 'var(--accent-dim)'
+            : 'var(--bg-elevated)',
+        color:
+          ['APPROVED', 'VERIFYING', 'AWAITING_RUNTIME_REVALIDATION', 'RECOVERED', 'PARTIALLY_RECOVERED', 'FAILED'].includes(
+            record.status
+          )
+            ? 'var(--accent-light)'
+            : 'var(--text-muted)',
+        border: `1px solid ${
+          ['APPROVED', 'VERIFYING', 'AWAITING_RUNTIME_REVALIDATION', 'RECOVERED', 'PARTIALLY_RECOVERED', 'FAILED'].includes(
+            record.status
+          )
+            ? 'var(--accent)'
+            : 'var(--border-strong)'
+        }`,
+        borderRadius: 8,
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        padding: '8px 12px',
+      },
     },
     {
       id: 'execute',
-      position: { x: 260, y: 170 },
+      position: { x: 220, y: 140 },
       data: { label: isRuntimeFinding ? 'Remediation Applied' : 'Simulated Hardening' },
-      style: { background: ['VERIFYING', 'AWAITING_RUNTIME_REVALIDATION', 'RECOVERED', 'PARTIALLY_RECOVERED', 'FAILED'].includes(record.status) ? '#0d9488' : '#1f2937', color: 'white', border: '1px solid #14b8a6', borderRadius: '8px' }
+      style: {
+        background:
+          ['VERIFYING', 'AWAITING_RUNTIME_REVALIDATION', 'RECOVERED', 'PARTIALLY_RECOVERED', 'FAILED'].includes(
+            record.status
+          )
+            ? 'var(--accent-dim)'
+            : 'var(--bg-elevated)',
+        color:
+          ['VERIFYING', 'AWAITING_RUNTIME_REVALIDATION', 'RECOVERED', 'PARTIALLY_RECOVERED', 'FAILED'].includes(
+            record.status
+          )
+            ? 'var(--accent-light)'
+            : 'var(--text-muted)',
+        border: `1px solid ${
+          ['VERIFYING', 'AWAITING_RUNTIME_REVALIDATION', 'RECOVERED', 'PARTIALLY_RECOVERED', 'FAILED'].includes(
+            record.status
+          )
+            ? 'var(--accent)'
+            : 'var(--border-strong)'
+        }`,
+        borderRadius: 8,
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        padding: '8px 12px',
+      },
     },
     {
       id: 'verify',
-      position: { x: 470, y: 170 },
+      position: { x: 410, y: 140 },
       data: { label: isRuntimeFinding ? 'Runtime Revalidation' : 'Attack Re-test' },
       style: {
-        background: ['RECOVERED', 'PARTIALLY_RECOVERED', 'FAILED'].includes(record.status)
-          ? (record.verification_status === 'PASSED' ? '#059669' : '#b91c1c')
-          : record.status === 'AWAITING_RUNTIME_REVALIDATION' ? '#d97706' : '#1f2937',
-        color: 'white',
-        border: '1px solid #34d399',
-        borderRadius: '8px'
-      }
-    }
+        background:
+          ['RECOVERED', 'PARTIALLY_RECOVERED'].includes(record.status)
+            ? 'var(--low-dim)'
+            : record.status === 'AWAITING_RUNTIME_REVALIDATION'
+            ? 'var(--high-dim)'
+            : record.status === 'FAILED'
+            ? 'var(--critical-dim)'
+            : 'var(--bg-elevated)',
+        color:
+          ['RECOVERED', 'PARTIALLY_RECOVERED'].includes(record.status)
+            ? 'var(--low)'
+            : record.status === 'AWAITING_RUNTIME_REVALIDATION'
+            ? 'var(--high)'
+            : record.status === 'FAILED'
+            ? 'var(--critical)'
+            : 'var(--text-muted)',
+        border: `1px solid ${
+          ['RECOVERED', 'PARTIALLY_RECOVERED'].includes(record.status)
+            ? 'var(--low)'
+            : record.status === 'AWAITING_RUNTIME_REVALIDATION'
+            ? 'var(--high)'
+            : record.status === 'FAILED'
+            ? 'var(--critical)'
+            : 'var(--border-strong)'
+        }`,
+        borderRadius: 8,
+        fontSize: '0.75rem',
+        fontWeight: 600,
+        padding: '8px 12px',
+      },
+    },
   ]
 
   const edges: Edge[] = [
-    { id: 'e1', source: 'finding', target: 'plan', markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' }, style: { stroke: '#9ca3af' } },
-    { id: 'e2', source: 'plan', target: 'approve', markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' }, style: { stroke: '#9ca3af' } },
-    { id: 'e3', source: 'approve', target: 'execute', markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' }, style: { stroke: '#9ca3af' } },
-    { id: 'e4', source: 'execute', target: 'verify', markerEnd: { type: MarkerType.ArrowClosed, color: '#9ca3af' }, style: { stroke: '#9ca3af' } }
+    { id: 'e1', source: 'finding', target: 'plan', markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent)' }, style: { stroke: 'var(--border-strong)' } },
+    { id: 'e2', source: 'plan', target: 'approve', markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent)' }, style: { stroke: 'var(--border-strong)' } },
+    { id: 'e3', source: 'approve', target: 'execute', markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent)' }, style: { stroke: 'var(--border-strong)' } },
+    { id: 'e4', source: 'execute', target: 'verify', markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent)' }, style: { stroke: 'var(--border-strong)' } },
   ]
 
-  const asrReductionPts = (record.previous_asr != null && record.current_asr != null)
-    ? (record.previous_asr - record.current_asr).toFixed(1)
-    : null
+  const asrReductionPts =
+    record.previous_asr != null && record.current_asr != null
+      ? (record.previous_asr - record.current_asr).toFixed(1)
+      : null
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-3">
-              <Link to="/recovery" className="text-gray-400 hover:text-white">← Back</Link>
-              <h1 className="text-2xl font-bold tracking-tight text-white">Recovery Ledger: {record.id.split('-')[0]}</h1>
-              <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-xs font-medium ${
-                  record.status === 'RECOVERED' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
-                  record.status === 'FAILED' || record.status === 'REOPENED' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
-                  record.status === 'AWAITING_RUNTIME_REVALIDATION' ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold' :
-                  'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                }`}>
-                {record.status}
-              </span>
-            </div>
-            <p className="text-gray-400 mt-2">
-              Agent ID: <Link to={`/agents/${record.agent_id}`} className="text-cyan-400 hover:underline">{record.agent_id}</Link>
-            </p>
+    <div>
+      {/* ── Top Header ── */}
+      <div style={{ marginBottom: 24, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+            <Link to="/recovery" className="link-btn" style={{ gap: 4 }}>
+              <ArrowLeft size={14} /> Back to Ledgers
+            </Link>
+            <span style={{ color: 'var(--text-muted)' }}>|</span>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>
+              Ledger <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-light)' }}>{shortId}</span>
+            </h1>
+            <RecoveryStatusBadge status={record.status} />
+            <SourceBadge source={isRuntimeFinding ? 'RUNTIME_DETECTION' : 'SIMULATION'} />
           </div>
-          
-          <div className="flex gap-3">
-            {record.status === 'OPEN' && (
-              <button
-                onClick={() => planMutation.mutate()}
-                disabled={planMutation.isPending}
-                className="rounded bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
-              >
-                {planMutation.isPending ? 'Generating...' : 'Generate Plan'}
-              </button>
-            )}
-            {record.status === 'PLANNED' && (
-              <button
-                onClick={() => approveMutation.mutate()}
-                disabled={approveMutation.isPending}
-                className="rounded bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-500 disabled:opacity-50"
-              >
-                {approveMutation.isPending ? 'Approving...' : 'Approve Plan'}
-              </button>
-            )}
-            {record.status === 'APPROVED' && (
-              <button
-                onClick={() => executeMutation.mutate()}
-                disabled={executeMutation.isPending}
-                className="rounded bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-500 disabled:opacity-50"
-              >
-                {executeMutation.isPending ? 'Applying...' : isRuntimeFinding ? 'Apply Remediation' : 'Execute Simulation'}
-              </button>
-            )}
-            {record.status === 'AWAITING_RUNTIME_REVALIDATION' && (
-              <button
-                onClick={() => setShowRevalidateModal(true)}
-                className="rounded bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500"
-              >
-                Attest & Revalidate
-              </button>
-            )}
-            {record.status === 'VERIFYING' && record.execution_status === 'SIMULATED' && (
-              <button
-                onClick={() => verifyMutation.mutate()}
-                disabled={verifyMutation.isPending}
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:opacity-50"
-              >
-                {verifyMutation.isPending ? 'Verifying...' : 'Verify Residual Risk'}
-              </button>
-            )}
+
+          <div style={{ display: 'flex', gap: 16, fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+            <span>
+              Target Agent:{' '}
+              <Link to={`/agents/${record.agent_id}`} style={{ color: 'var(--accent-light)', fontFamily: 'var(--font-mono)' }}>
+                {record.agent_id.split('-')[0]}
+              </Link>
+            </span>
+            <span>·</span>
+            <span>
+              Originating Finding:{' '}
+              <Link to={`/findings/${record.finding_id}`} style={{ color: 'var(--accent-light)', fontFamily: 'var(--font-mono)' }}>
+                {record.finding_id.split('-')[0]}
+              </Link>
+            </span>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Info */}
-          <div className="lg:col-span-2 space-y-6">
-            <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
-              <h2 className="text-lg font-medium text-white mb-4">Remediation Details</h2>
-              {record.status === 'OPEN' ? (
-                <div className="text-gray-400 text-sm">
-                  Ledger created. Generate a plan to map the finding to a remediation strategy.
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-400">Type</h3>
-                    <p className="mt-1 text-white">{record.remediation_type}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-400">Description</h3>
-                    <p className="mt-1 text-white">{record.description}</p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-400">Recommended Action</h3>
-                    <pre className="mt-1 text-sm text-gray-300 bg-black/20 p-3 rounded-lg border border-white/5 whitespace-pre-wrap font-sans">
-                      {record.recommended_action}
-                    </pre>
-                  </div>
-                  {record.before_state && record.after_state && (
-                    <div className="grid grid-cols-2 gap-4 mt-4">
-                      <div className="bg-red-500/5 p-4 rounded-lg border border-red-500/10">
-                        <h4 className="text-xs font-medium text-red-400 uppercase tracking-wider mb-2">Before State (Baseline)</h4>
-                        <pre className="text-xs text-gray-300 overflow-x-auto">{JSON.stringify(record.before_state, null, 2)}</pre>
-                      </div>
-                      <div className="bg-emerald-500/5 p-4 rounded-lg border border-emerald-500/10">
-                        <h4 className="text-xs font-medium text-emerald-400 uppercase tracking-wider mb-2">After State (Hardening Applied)</h4>
-                        <pre className="text-xs text-gray-300 overflow-x-auto">{JSON.stringify(record.after_state, null, 2)}</pre>
-                      </div>
-                    </div>
-                  )}
+        {/* ── Action Controls ── */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {record.status === 'OPEN' && (
+            <button
+              onClick={() => planMutation.mutate()}
+              disabled={planMutation.isPending}
+              className="btn btn-primary"
+            >
+              {planMutation.isPending ? 'Generating Plan...' : 'Generate Plan'}
+            </button>
+          )}
 
-                  {record.runtime_revalidation_notes && (
-                    <div className="mt-4 p-4 rounded-lg border border-cyan-500/20 bg-cyan-500/5">
-                      <h4 className="text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-2">Operator Runtime Attestation & Evidence</h4>
-                      <pre className="text-xs text-gray-200 whitespace-pre-wrap font-mono">{record.runtime_revalidation_notes}</pre>
-                    </div>
-                  )}
-                </div>
-              )}
+          {record.status === 'PLANNED' && (
+            <button
+              onClick={() => approveMutation.mutate()}
+              disabled={approveMutation.isPending}
+              className="btn btn-success"
+            >
+              {approveMutation.isPending ? 'Approving...' : 'Approve Plan'}
+            </button>
+          )}
+
+          {record.status === 'APPROVED' && (
+            <button
+              onClick={() => executeMutation.mutate()}
+              disabled={executeMutation.isPending}
+              className="btn btn-primary"
+            >
+              {executeMutation.isPending
+                ? 'Applying...'
+                : isRuntimeFinding
+                ? 'Apply Remediation'
+                : 'Execute Simulated Hardening'}
+            </button>
+          )}
+
+          {record.status === 'AWAITING_RUNTIME_REVALIDATION' && (
+            <button
+              onClick={() => setShowRevalidateModal(true)}
+              className="btn btn-warning"
+              style={{ boxShadow: '0 2px 8px rgba(249, 115, 22, 0.25)' }}
+            >
+              <FileCheck size={14} /> Attest & Revalidate
+            </button>
+          )}
+
+          {record.status === 'VERIFYING' && record.execution_status === 'SIMULATED' && (
+            <button
+              onClick={() => verifyMutation.mutate()}
+              disabled={verifyMutation.isPending}
+              className="btn btn-primary"
+            >
+              {verifyMutation.isPending ? 'Re-testing...' : 'Verify Residual Risk'}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Main Two-Column Layout ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 24 }}>
+        {/* Left Column: Details & Lifecycle */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Card: Remediation Details */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Remediation Strategy & Controls</span>
+              <span className="badge badge-neutral">{record.remediation_type || 'Custom'}</span>
             </div>
 
-            {/* Lifecycle Flow */}
-            <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md h-80">
-              <h2 className="text-lg font-medium text-white mb-4">Execution Lifecycle</h2>
-              <div className="h-64 w-full">
-                <ReactFlow nodes={nodes} edges={edges} fitView>
-                  <Background color="#374151" gap={16} />
-                  <Controls />
-                </ReactFlow>
+            {record.status === 'OPEN' ? (
+              <div style={{ color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                Ledger initialized. Click <strong>Generate Plan</strong> to map the security finding to a hardening profile.
               </div>
-            </div>
-          </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
+                    Remediation Plan Title
+                  </div>
+                  <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    {record.title || record.remediation_type}
+                  </div>
+                </div>
 
-          {/* Right Sidebar */}
-          <div className="space-y-6">
-            <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
-              <h2 className="text-lg font-medium text-white mb-4">Verification Results</h2>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center pb-4 border-b border-white/10">
-                  <span className="text-sm text-gray-400">Baseline ASR</span>
-                  <span className="text-lg font-medium text-red-400 font-mono">
-                    {record.previous_asr != null ? `${record.previous_asr.toFixed(1)}%` : 'N/A (Runtime)'}
-                  </span>
+                <div>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
+                    Description
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                    {record.description || 'No description provided.'}
+                  </p>
                 </div>
-                <div className="flex justify-between items-center pb-4 border-b border-white/10">
-                  <span className="text-sm text-gray-400">Post-Remediation ASR</span>
-                  <span className={`text-lg font-medium font-mono ${record.current_asr === 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                    {record.current_asr != null ? `${record.current_asr.toFixed(1)}%` : (isRuntimeFinding ? (record.status === 'RECOVERED' ? 'Attested Clean' : 'Pending Attestation') : 'Pending Test')}
-                  </span>
-                </div>
-                {asrReductionPts && (
-                  <div className="flex justify-between items-center pb-4 border-b border-white/10">
-                    <span className="text-sm text-gray-400">ASR Reduction</span>
-                    <span className="text-lg font-bold text-emerald-400 font-mono">
-                      +{asrReductionPts} pts
-                    </span>
+
+                {record.recommended_action && (
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
+                      Recommended Action
+                    </div>
+                    <div className="code-block" style={{ whiteSpace: 'pre-wrap' }}>
+                      {record.recommended_action}
+                    </div>
                   </div>
                 )}
-                <div className="pt-2">
-                  <span className="text-sm text-gray-400 block mb-1">Residual Risk</span>
-                  {record.residual_risk ? (
-                    <div>
-                      <span className={`inline-flex items-center rounded-md px-2.5 py-1 text-sm font-bold ${
-                        record.residual_risk === 'CRITICAL' ? 'bg-red-500/20 text-red-400 border border-red-500/30' :
-                        record.residual_risk === 'HIGH' ? 'bg-orange-500/20 text-orange-400 border border-orange-500/30' :
-                        record.residual_risk === 'MEDIUM' ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' :
-                        'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                      }`}>
-                        {record.residual_risk}
-                      </span>
-                      <p className="mt-2 text-xs text-gray-400">{record.residual_risk_explanation}</p>
-                    </div>
-                  ) : (
-                    <span className="text-sm text-gray-500">Not assessed</span>
-                  )}
-                </div>
-              </div>
-            </div>
 
-            <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
-              <h2 className="text-lg font-medium text-white mb-4">Cryptographic Audit Ledger</h2>
-              <div className="space-y-4 max-h-96 overflow-y-auto pr-2">
-                {events?.map((event) => (
-                  <div key={event.id} className="relative pl-4 border-l border-white/10 pb-4 last:pb-0">
-                    <div className="absolute w-2 h-2 bg-cyan-500 rounded-full -left-[5px] top-1.5 ring-4 ring-black"></div>
-                    <p className="text-xs text-cyan-400 font-mono mb-1">{new Date(event.created_at).toLocaleString()}</p>
-                    <p className="text-sm font-medium text-white">{event.event_type}</p>
-                    <p className="text-xs text-gray-400 mt-1">{event.message}</p>
+                {record.before_state && record.after_state && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 8 }}>
+                    <div style={{ background: 'var(--critical-dim)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 'var(--radius-md)', padding: 12 }}>
+                      <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--critical)', textTransform: 'uppercase', marginBottom: 6 }}>
+                        Baseline State (Vulnerable)
+                      </div>
+                      <pre style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', overflowX: 'auto' }}>
+                        {JSON.stringify(record.before_state, null, 2)}
+                      </pre>
+                    </div>
+
+                    <div style={{ background: 'var(--low-dim)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: 'var(--radius-md)', padding: 12 }}>
+                      <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--low)', textTransform: 'uppercase', marginBottom: 6 }}>
+                        Hardened State (Applied)
+                      </div>
+                      <pre style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', overflowX: 'auto' }}>
+                        {JSON.stringify(record.after_state, null, 2)}
+                      </pre>
+                    </div>
                   </div>
-                ))}
-                {!events?.length && <p className="text-sm text-gray-500">No events recorded yet.</p>}
+                )}
+
+                {record.runtime_revalidation_notes && (
+                  <div style={{ background: 'var(--accent-dim)', border: '1px solid var(--border-accent)', borderRadius: 'var(--radius-md)', padding: 16, marginTop: 8 }}>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent-light)', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <CheckCircle2 size={14} color="var(--accent-light)" /> Operator Runtime Attestation & Evidence
+                    </div>
+                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', whiteSpace: 'pre-wrap', fontFamily: 'var(--font-mono)' }}>
+                      {record.runtime_revalidation_notes}
+                    </div>
+                  </div>
+                )}
               </div>
+            )}
+          </div>
+
+          {/* Card: Execution Lifecycle Graph */}
+          <div className="card" style={{ height: 320, display: 'flex', flexDirection: 'column' }}>
+            <div className="card-header" style={{ marginBottom: 12 }}>
+              <span className="card-title">Remediation Lifecycle Graph</span>
+              <span className="badge badge-accent">Interactive Visualizer</span>
+            </div>
+            <div style={{ flex: 1, width: '100%', borderRadius: 'var(--radius-md)', overflow: 'hidden', border: '1px solid var(--border-default)' }}>
+              <ReactFlow nodes={nodes} edges={edges} fitView>
+                <Background color="rgba(255, 255, 255, 0.05)" gap={16} />
+                <Controls />
+              </ReactFlow>
             </div>
           </div>
         </div>
 
-        {/* Runtime Revalidation Modal */}
-        {showRevalidateModal && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <div className="w-full max-w-lg rounded-xl border border-white/10 bg-gray-900 p-6 space-y-4">
-              <h3 className="text-lg font-bold text-white">Operator Runtime Revalidation</h3>
-              <p className="text-xs text-gray-400">
-                Attest that the observed runtime vulnerability has been resolved in production or sandbox telemetry.
-                This appends a cryptographically chained event to the audit ledger without fabricating simulated attack executions.
-              </p>
+        {/* Right Column: Outcomes & Hash Chain Ledger */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+          {/* Card: Verification Outcomes */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Verification Metrics</span>
+              <Badge variant={record.verification_status === 'PASSED' ? 'low' : record.verification_status === 'FAILED' ? 'critical' : 'neutral'}>
+                {record.verification_status || 'PENDING'}
+              </Badge>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12, borderBottom: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Baseline ASR</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1rem', fontWeight: 600, color: record.previous_asr != null ? 'var(--critical)' : 'var(--text-muted)' }}>
+                  {record.previous_asr != null ? `${record.previous_asr.toFixed(1)}%` : 'N/A (Runtime)'}
+                </span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12, borderBottom: '1px solid var(--border-subtle)' }}>
+                <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Verified Post-ASR</span>
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1rem', fontWeight: 600, color: record.current_asr === 0 ? 'var(--low)' : 'var(--text-primary)' }}>
+                  {record.current_asr != null
+                    ? `${record.current_asr.toFixed(1)}%`
+                    : isRuntimeFinding
+                    ? record.status === 'RECOVERED'
+                      ? 'Attested Clean'
+                      : 'Pending Attestation'
+                    : 'Pending Retest'}
+                </span>
+              </div>
+
+              {asrReductionPts && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: 12, borderBottom: '1px solid var(--border-subtle)' }}>
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>ASR Reduction</span>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '1.125rem', fontWeight: 700, color: 'var(--low)' }}>
+                    +{asrReductionPts} pts
+                  </span>
+                </div>
+              )}
 
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1">Decision</label>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block', marginBottom: 6, textTransform: 'uppercase', fontWeight: 600 }}>
+                  Residual Risk Assessment
+                </span>
+                {record.residual_risk ? (
+                  <div>
+                    <Badge variant={record.residual_risk === 'LOW' ? 'low' : record.residual_risk === 'MEDIUM' ? 'medium' : 'critical'}>
+                      {record.residual_risk} RISK
+                    </Badge>
+                    {record.residual_risk_explanation && (
+                      <p style={{ marginTop: 8, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        {record.residual_risk_explanation}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Not yet assessed</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Card: Ledger Integrity Status */}
+          <div className="card">
+            <div className="card-header">
+              <span className="card-title">Cryptographic Integrity</span>
+              <button
+                onClick={() => verifyLedger()}
+                disabled={isVerifyingLedger}
+                className="btn btn-outline btn-sm"
+              >
+                {isVerifyingLedger ? 'Verifying...' : 'Verify Chain'}
+              </button>
+            </div>
+
+            {ledgerVerification && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.8125rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: ledgerVerification.is_valid ? 'var(--low)' : 'var(--critical)', fontWeight: 600 }}>
+                  {ledgerVerification.is_valid ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                  <span>{ledgerVerification.is_valid ? 'Ledger Hash Chain Valid' : 'Tamper Detected!'}</span>
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  {ledgerVerification.total_events} sequential events verified · No break in SHA-256 links
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Card: Cryptographic Audit Ledger */}
+          <div className="card" style={{ flex: 1 }}>
+            <div className="card-header">
+              <span className="card-title">Audit Ledger Timeline</span>
+              <span className="badge badge-neutral">{events?.length ?? 0} Events</span>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 380, overflowY: 'auto', paddingRight: 4 }}>
+              {isEventsLoading ? (
+                <Skeleton height={80} />
+              ) : !events?.length ? (
+                <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>No audit events recorded yet.</div>
+              ) : (
+                events.map((event: RecoveryEvent) => (
+                  <div
+                    key={event.id}
+                    style={{
+                      borderLeft: '2px solid var(--border-accent)',
+                      paddingLeft: 12,
+                      position: 'relative',
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: -5,
+                        top: 2,
+                        width: 8,
+                        height: 8,
+                        borderRadius: '50%',
+                        background: 'var(--accent)',
+                      }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        {event.event_type}
+                      </span>
+                      <span style={{ fontSize: '0.6875rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>
+                        {new Date(event.created_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                      {event.message}
+                    </div>
+
+                    <div style={{ marginTop: 6, fontSize: '0.6875rem', fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', display: 'flex', flexDirection: 'column', gap: 2 }}>
+                      <span>Hash: {event.event_hash ? `${event.event_hash.slice(0, 16)}...` : 'None'}</span>
+                      {event.previous_hash && (
+                        <span>Prev: {event.previous_hash.slice(0, 16)}...</span>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Runtime Revalidation Modal ── */}
+      {showRevalidateModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+              Operator Runtime Revalidation
+            </h3>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 20 }}>
+              Attest that the observed runtime vulnerability has been resolved in production or sandbox telemetry.
+              This appends a cryptographically chained event to the audit ledger without fabricating synthetic attack executions.
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                  Decision
+                </label>
                 <select
                   value={operatorDecision}
                   onChange={(e) => setOperatorDecision(e.target.value as any)}
-                  className="w-full rounded bg-black/40 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.8125rem',
+                    outline: 'none',
+                  }}
                 >
                   <option value="RESOLVED">RESOLVED — Vulnerability successfully remediated</option>
                   <option value="PARTIAL">PARTIAL — Partially mitigated with residual controls</option>
@@ -347,51 +618,78 @@ export default function RecoveryDetail() {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1">Rationale</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                  Rationale *
+                </label>
                 <textarea
                   rows={3}
                   value={rationale}
                   onChange={(e) => setRationale(e.target.value)}
                   placeholder="e.g. Scoped agent tool bindings in production; verified no undeclared capability invocations in past 24 hours."
-                  className="w-full rounded bg-black/40 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.8125rem',
+                    outline: 'none',
+                    resize: 'vertical',
+                  }}
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-300 mb-1">Evidence Notes (Optional)</label>
+                <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
+                  Evidence Notes (Optional)
+                </label>
                 <textarea
                   rows={2}
                   value={evidenceNotes}
                   onChange={(e) => setEvidenceNotes(e.target.value)}
-                  placeholder="e.g. Trace IDs, PR reference, or runtime event hashes."
-                  className="w-full rounded bg-black/40 border border-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
+                  placeholder="e.g. PR #42, runtime trace IDs, or security log hashes."
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    background: 'var(--bg-elevated)',
+                    border: '1px solid var(--border-strong)',
+                    borderRadius: 'var(--radius-md)',
+                    color: 'var(--text-primary)',
+                    fontSize: '0.8125rem',
+                    outline: 'none',
+                    resize: 'vertical',
+                  }}
                 />
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 12, marginTop: 8 }}>
                 <button
                   type="button"
                   onClick={() => setShowRevalidateModal(false)}
-                  className="px-4 py-2 text-sm text-gray-400 hover:text-white"
+                  className="btn btn-outline"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   disabled={!rationale.trim() || revalidateMutation.isPending}
-                  onClick={() => revalidateMutation.mutate({
-                    operator_decision: operatorDecision,
-                    rationale: rationale.trim(),
-                    evidence_notes: evidenceNotes.trim() || undefined
-                  })}
-                  className="rounded bg-cyan-600 px-4 py-2 text-sm font-medium text-white hover:bg-cyan-500 disabled:opacity-50"
+                  onClick={() =>
+                    revalidateMutation.mutate({
+                      operator_decision: operatorDecision,
+                      rationale: rationale.trim(),
+                      evidence_notes: evidenceNotes.trim() || undefined,
+                    })
+                  }
+                  className="btn btn-primary"
                 >
-                  {revalidateMutation.isPending ? 'Submitting...' : 'Record Attestation'}
+                  {revalidateMutation.isPending ? 'Recording...' : 'Record Attestation'}
                 </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </div>
   )
 }

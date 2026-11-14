@@ -64,3 +64,41 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     </Badge>
   )
 }
+
+export function RecoveryStatusBadge({ status }: { status: string }) {
+  const map: Record<string, { variant: BadgeProps['variant']; label: string; dot?: string }> = {
+    RECOVERED: { variant: 'low', label: 'RECOVERED', dot: 'status-dot-active' },
+    AWAITING_RUNTIME_REVALIDATION: { variant: 'high', label: 'AWAITING REVALIDATION', dot: 'status-dot-quarantined' },
+    EXECUTING: { variant: 'accent', label: 'EXECUTING' },
+    VERIFYING: { variant: 'accent', label: 'VERIFYING' },
+    APPROVED: { variant: 'info', label: 'APPROVED' },
+    PLANNED: { variant: 'info', label: 'PLANNED' },
+    OPEN: { variant: 'neutral', label: 'OPEN' },
+    PARTIALLY_RECOVERED: { variant: 'medium', label: 'PARTIAL RECOVERY' },
+    FAILED: { variant: 'critical', label: 'FAILED' },
+    REOPENED: { variant: 'critical', label: 'REOPENED' },
+  }
+
+  const conf = map[status] || { variant: 'neutral', label: status }
+  return (
+    <Badge variant={conf.variant}>
+      {conf.dot && <span className={`status-dot ${conf.dot}`} style={conf.variant === 'high' ? { background: 'var(--high)', boxShadow: '0 0 6px var(--high)' } : undefined} />}
+      {conf.label}
+    </Badge>
+  )
+}
+
+export function SourceBadge({ source }: { source?: string }) {
+  if (source === 'RUNTIME_DETECTION' || source === 'RUNTIME') {
+    return (
+      <Badge variant="accent">
+        <span style={{ fontSize: '0.625rem', fontFamily: 'var(--font-mono)' }}>RUNTIME</span>
+      </Badge>
+    )
+  }
+  return (
+    <Badge variant="neutral">
+      <span style={{ fontSize: '0.625rem', fontFamily: 'var(--font-mono)' }}>SIMULATION</span>
+    </Badge>
+  )
+}

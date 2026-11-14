@@ -189,10 +189,13 @@ function computeLayout(
 function computeEdges(apiEdges: BlastRadiusEdge[]): Edge[] {
   return apiEdges.map((e) => {
     const isObserved = (e as any).provenance === 'OBSERVED'
+    const isVerified = (e as any).provenance === 'VERIFIED'
     const interactionCount = (e as any).interaction_count
     let labelText: string = e.relationship_type
     if (isObserved) {
-      labelText = interactionCount ? `${e.relationship_type} (${interactionCount}x)` : `${e.relationship_type} (OBSERVED)`
+      labelText = interactionCount ? `${e.relationship_type} (${interactionCount}x OBSERVED)` : `${e.relationship_type} (OBSERVED)`
+    } else if (isVerified) {
+      labelText = `${e.relationship_type} (VERIFIED)`
     }
 
     return {
@@ -204,20 +207,20 @@ function computeEdges(apiEdges: BlastRadiusEdge[]): Edge[] {
         fontSize: 9,
         fontFamily: 'JetBrains Mono, monospace',
         fontWeight: 700,
-        fill: isObserved ? '#60a5fa' : (REL_COLORS[e.relationship_type] ?? '#6b7280'),
+        fill: isObserved ? '#60a5fa' : isVerified ? '#34d399' : (REL_COLORS[e.relationship_type] ?? '#6b7280'),
       },
       labelBgStyle: { fill: '#0d1226', fillOpacity: 0.9 },
       labelBgPadding: [3, 5] as [number, number],
       labelBgBorderRadius: 3,
       animated: !e.id.startsWith('in-') || isObserved,
       style: {
-        stroke: isObserved ? '#3b82f6' : (REL_COLORS[e.relationship_type] ?? '#4a5568'),
+        stroke: isObserved ? '#3b82f6' : isVerified ? '#10b981' : (REL_COLORS[e.relationship_type] ?? '#4a5568'),
         strokeWidth: isObserved ? 2.5 : e.id.startsWith('in-') ? 1.5 : 2,
         strokeDasharray: isObserved ? '4 2' : e.id.startsWith('in-') ? '5 4' : undefined,
       },
       markerEnd: {
         type: MarkerType.ArrowClosed,
-        color: isObserved ? '#3b82f6' : (REL_COLORS[e.relationship_type] ?? '#4a5568'),
+        color: isObserved ? '#3b82f6' : isVerified ? '#10b981' : (REL_COLORS[e.relationship_type] ?? '#4a5568'),
         width: 16,
         height: 16,
       },
@@ -614,10 +617,12 @@ export default function BlastRadiusPage() {
               ))}
               <div style={{ borderTop: '1px solid var(--border-subtle)', marginTop: 4, paddingTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {[
-                  { color: REL_COLORS.CALLS, label: 'CALLS relationship', dashed: false },
-                  { color: REL_COLORS.DELEGATES, label: 'DELEGATES relationship', dashed: false },
+                  { color: '#3b82f6', label: 'OBSERVED relationship (Live Telemetry)', dashed: true },
+                  { color: '#10b981', label: 'VERIFIED relationship (Authenticated)', dashed: false },
+                  { color: REL_COLORS.CALLS, label: 'CALLS (Modeled/Seeded)', dashed: false },
+                  { color: REL_COLORS.DELEGATES, label: 'DELEGATES (Modeled/Seeded)', dashed: false },
                   { color: REL_COLORS.SHARES_CREDENTIAL, label: 'SHARES_CREDENTIAL', dashed: false },
-                  { color: '#4a5568', label: 'Incoming (upstream)', dashed: true },
+                  { color: '#4a5568', label: 'Incoming (upstream dependency)', dashed: true },
                 ].map((item) => (
                   <div key={item.label} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: '0.6875rem', color: 'var(--text-secondary)' }}>
                     <svg width="18" height="8" style={{ flexShrink: 0 }}>

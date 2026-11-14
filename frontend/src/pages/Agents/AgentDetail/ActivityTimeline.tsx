@@ -94,11 +94,13 @@ export function ActivityTimeline({ agentId }: ActivityTimelineProps) {
               background: 'var(--bg-elevated)',
               border: '1px solid var(--border-default)',
               borderRadius: 'var(--radius-sm)',
-              padding: '1px 5px',
+              padding: '1px 6px',
               color: 'var(--text-secondary)',
             }}
           >
-            {eventTypeFilter ? `${events.length} matching / ${data?.total ?? events.length} total` : `${data?.total ?? events.length} events`}
+            {eventTypeFilter
+              ? `${events.length} matching event${events.length === 1 ? '' : 's'} displayed / ${data?.total ?? events.length} total events`
+              : `${data?.total ?? events.length} total events`}
           </span>
         </div>
 

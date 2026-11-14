@@ -26,6 +26,15 @@ def upgrade() -> None:
             with op.batch_alter_table("recovery_records", schema=None) as batch_op:
                 batch_op.add_column(sa.Column("runtime_revalidation_notes", sa.Text(), nullable=True))
 
+    # Add previous_hash and event_hash to recovery_events if not present
+    if "recovery_events" in existing_tables:
+        event_cols = {c["name"] for c in insp.get_columns("recovery_events")}
+        with op.batch_alter_table("recovery_events", schema=None) as batch_op:
+            if "previous_hash" not in event_cols:
+                batch_op.add_column(sa.Column("previous_hash", sa.String(64), nullable=True))
+            if "event_hash" not in event_cols:
+                batch_op.add_column(sa.Column("event_hash", sa.String(64), nullable=True))
+
     # 2. Canonical ASR data migration:
     # Recalculate attack_success_rate deterministically as a percentage (0.0 to 100.0)
     # using historical attempt counts, ensuring 100% idempotent normalization.

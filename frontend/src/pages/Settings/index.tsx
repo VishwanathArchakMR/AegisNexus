@@ -1,161 +1,403 @@
-import { Shield, Cpu, Radio, CheckCircle2, Server, Terminal } from 'lucide-react'
+import { useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import {
+  Server,
+  Shield,
+  Radio,
+  Sliders,
+  Hash,
+  Terminal,
+  Copy,
+  Check,
+} from 'lucide-react'
+import { api } from '../../lib/api'
+import { PageHeader } from '../../components/layout/PageHeader'
+import { Skeleton } from '../../components/ui/Skeleton'
+import { Badge } from '../../components/ui/Badge'
 
 export default function Settings() {
+  const [copiedCode, setCopiedCode] = useState(false)
+  const [copiedInstall, setCopiedInstall] = useState(false)
+
+  const { data: health, isLoading: isHealthLoading } = useQuery({
+    queryKey: ['system', 'health'],
+    queryFn: () => api.health.get(),
+  })
+
+  const installCommand = 'pip install -e ./sdks/python'
+
+  const pythonExampleCode = `import os
+from aegisnexus_sdk import AegisNexusClient, CapabilityDeclaration
+
+# Initialize client from environment or explicitly
+client = AegisNexusClient(
+    endpoint=os.getenv("AEGISNEXUS_ENDPOINT", "http://localhost:8000/api/v1"),
+    agent_id=os.getenv("AEGISNEXUS_AGENT_ID"),
+    api_key=os.getenv("AEGISNEXUS_API_KEY"),
+    heartbeat_interval=15,  # Automatic background heartbeat daemon
+    fail_open=True,         # Never block agent execution on network partition
+)
+
+# Start background heartbeat & telemetry buffer thread
+client.start()
+
+# Synchronize declared security capabilities
+client.report_capabilities([
+    CapabilityDeclaration(
+        name="lookup_customer",
+        resource_type="DATABASE",
+        permission_level="READ",
+        is_sensitive=False,
+        description="Reads customer account profiles",
+    ),
+])
+
+# Instrument tool executions using decorator
+@client.instrument_tool(
+    name="lookup_customer",
+    resource_type="DATABASE",
+    permission_level="READ",
+)
+def fetch_customer(customer_id: str):
+    # Tool execution is automatically monitored, timed, and redacted
+    return {"id": customer_id, "status": "active"}
+
+# Or instrument dynamically using context manager
+with client.track_tool_call(
+    tool_name="process_refund",
+    resource_type="PAYMENT",
+    permission_level="WRITE",
+    is_sensitive=True,
+    parameters={"amount": 49.99},
+) as tracker:
+    # Business logic executes here
+    tracker.set_result({"status": "success"})
+`
+
+  const handleCopyCode = () => {
+    navigator.clipboard.writeText(pythonExampleCode)
+    setCopiedCode(true)
+    setTimeout(() => setCopiedCode(false), 2000)
+  }
+
+  const handleCopyInstall = () => {
+    navigator.clipboard.writeText(installCommand)
+    setCopiedInstall(true)
+    setTimeout(() => setCopiedInstall(false), 2000)
+  }
+
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white">System Settings & Governance Policies</h1>
-        <p className="text-gray-400 mt-1">
-          Operational configuration, agent integration parameters, cryptographic ledger policies, and runtime boundaries.
-        </p>
-      </div>
+    <div>
+      <PageHeader
+        title="Settings & System Governance"
+        subtitle="Operational parameters, agent security boundaries, cryptographic ledger configuration, and SDK telemetry guardrails."
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Platform Overview */}
-        <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md space-y-4">
-          <div className="flex items-center gap-3 text-cyan-400">
-            <Server size={22} />
-            <h2 className="text-lg font-semibold text-white">Platform Architecture</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: 24, marginBottom: 24 }}>
+        {/* ── Section A: Platform Overview ── */}
+        <div className="card">
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Server size={18} color="var(--accent-light)" />
+              <span className="card-title">Platform Architecture</span>
+            </div>
+            {isHealthLoading ? (
+              <Skeleton width={60} height={20} />
+            ) : health ? (
+              <Badge variant="low">
+                <span className="status-dot status-dot-active" /> ONLINE
+              </Badge>
+            ) : (
+              <Badge variant="critical">OFFLINE</Badge>
+            )}
           </div>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Platform Edition</span>
-              <span className="text-white font-mono">AegisNexus 2.0 Hardened</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Backend Runtime</span>
-              <span className="text-white font-mono">FastAPI / Python 3.12 (Async ORM)</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Supported Database</span>
-              <span className="text-emerald-400 font-mono">SQLite (Transactional ACID)</span>
-            </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Cryptographic Ledger</span>
-              <span className="text-white font-mono">SHA-256 Hash-Chained Blockchain</span>
-            </div>
-            <div className="flex justify-between py-2">
-              <span className="text-gray-400">Python SDK Version</span>
-              <span className="text-cyan-400 font-mono">aegisnexus-sdk v0.2.0</span>
-            </div>
-          </div>
-        </div>
 
-        {/* Security & Access Controls */}
-        <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md space-y-4">
-          <div className="flex items-center gap-3 text-indigo-400">
-            <Shield size={22} />
-            <h2 className="text-lg font-semibold text-white">Control Plane & Auth Policies</h2>
-          </div>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Operator Access Control</span>
-              <span className="inline-flex items-center gap-1.5 text-emerald-400 font-medium">
-                <CheckCircle2 size={14} /> Fail-Closed in Production
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.8125rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Product Edition</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                AegisNexus 2.0 Hardened
               </span>
             </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Agent Authentication</span>
-              <span className="text-white font-mono">SHA-256 Hashed Bearer Tokens</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Control Plane Version</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                {health?.version || '2.0.0-rc2'}
+              </span>
             </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Administrative State Protection</span>
-              <span className="text-emerald-400 font-medium">Immutable to Heartbeats</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Backend Runtime</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                FastAPI / Python 3.12 (SQLAlchemy Async ORM)
+              </span>
             </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Initial External Trust Default</span>
-              <span className="text-amber-400 font-medium">LOW (Conservative Default)</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Persistence Engine</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--low)' }}>
+                SQLite (aiosqlite) / PostgreSQL-Ready
+              </span>
             </div>
-            <div className="flex justify-between py-2">
-              <span className="text-gray-400">Key Lifecycle Support</span>
-              <span className="text-white font-mono">Active / Rotated / Revoked</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Official Python SDK</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--accent-light)' }}>
+                aegisnexus-sdk v0.2.0
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Heartbeat & Liveness Thresholds */}
-        <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md space-y-4">
-          <div className="flex items-center gap-3 text-amber-400">
-            <Radio size={22} />
-            <h2 className="text-lg font-semibold text-white">Connectivity Telemetry Thresholds</h2>
+        {/* ── Section B: Agent Security Policies ── */}
+        <div className="card">
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Shield size={18} color="var(--info)" />
+              <span className="card-title">Agent Security & Auth Policies</span>
+            </div>
+            <Badge variant="accent">POLICY ENFORCED</Badge>
           </div>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Default Heartbeat Interval</span>
-              <span className="text-white font-mono">30 seconds</span>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.8125rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Default Trust Assignment</span>
+              <Badge variant="low">LOW (Conservative Default)</Badge>
             </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Stale Connection Warning</span>
-              <span className="text-amber-400 font-mono">60 seconds without contact</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Agent Authentication</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                Salted SHA-256 Bearer Tokens
+              </span>
             </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Offline Threshold</span>
-              <span className="text-red-400 font-mono">120 seconds without contact</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Administrative State Protection</span>
+              <span style={{ color: 'var(--low)', fontWeight: 600 }}>
+                Immutable to Heartbeats (Enforced)
+              </span>
             </div>
-            <div className="flex justify-between py-2">
-              <span className="text-gray-400">Telemetry Ingestion Batch Limit</span>
-              <span className="text-white font-mono">100 events / request</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Operator Access Scope</span>
+              <span style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)' }}>
+                get_operator_access (Fail-Closed)
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Credential Lifecycle</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                ACTIVE · ROTATED · REVOKED
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Section C: Connectivity & Heartbeat Thresholds ── */}
+        <div className="card">
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Radio size={18} color="var(--high)" />
+              <span className="card-title">Connectivity & Telemetry Thresholds</span>
+            </div>
+            <Badge variant="neutral">DAEMON CONTROLLED</Badge>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.8125rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Heartbeat Interval</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                30 seconds (Default)
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Stale Status Threshold</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--medium)' }}>
+                60 seconds without contact
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Offline Status Threshold</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--critical)' }}>
+                120 seconds without contact
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Telemetry Batch Limit</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                100 events / request
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Connection States</span>
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                ONLINE · STALE · OFFLINE · NEVER_CONNECTED
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Telemetry Redaction & Guardrails */}
-        <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md space-y-4">
-          <div className="flex items-center gap-3 text-emerald-400">
-            <Cpu size={22} />
-            <h2 className="text-lg font-semibold text-white">Runtime Ingestion Guardrails</h2>
+        {/* ── Section D: Telemetry Guardrails & Redaction ── */}
+        <div className="card">
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Sliders size={18} color="var(--low)" />
+              <span className="card-title">Telemetry Guardrails & Sanitization</span>
+            </div>
+            <Badge variant="low">SERVER REDACTION ACTIVE</Badge>
           </div>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Server-Side Redaction</span>
-              <span className="text-emerald-400 font-medium">Active (Recursive Key Scrub)</span>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, fontSize: '0.8125rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Server-Side Redaction</span>
+              <span style={{ color: 'var(--low)', fontWeight: 600 }}>
+                Recursive (token, password, secret, key)
+              </span>
             </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Redacted Token Patterns</span>
-              <span className="text-white font-mono text-xs">password, secret, token, key, auth</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Execution Duration Bounding</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                Clamped between 0.0s – 3600.0s
+              </span>
             </div>
-            <div className="flex justify-between py-2 border-b border-white/5">
-              <span className="text-gray-400">Max Event Payload Boundary</span>
-              <span className="text-white font-mono">1 MB (1,048,576 bytes)</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Timestamp Boundary</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                Reject events &gt; 60s in future
+              </span>
             </div>
-            <div className="flex justify-between py-2">
-              <span className="text-gray-400">Event Idempotency Check</span>
-              <span className="text-cyan-400 font-medium">Deduplication by event_id</span>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border-subtle)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Event Deduplication</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+                Idempotent event_id ingestion
+              </span>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Queue Overflow Telemetry</span>
+              <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--high)' }}>
+                dropped_events_count tracking
+              </span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Integration Reference */}
-      <div className="rounded-xl border border-white/10 bg-black/40 p-6 backdrop-blur-md space-y-4">
-        <div className="flex items-center gap-3 text-cyan-400">
-          <Terminal size={22} />
-          <h2 className="text-lg font-semibold text-white">External Agent SDK Integration Reference</h2>
-        </div>
-        <p className="text-sm text-gray-400">
-          External agents integrate with AegisNexus using the official Python client. Telemetry, heartbeats, and capability sync run asynchronously with configurable fail-open protection.
-        </p>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-2">
-          <div className="bg-black/60 p-4 rounded-lg border border-white/5">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">SDK Installation</h3>
-            <pre className="text-xs text-cyan-300 font-mono overflow-x-auto">
-              pip install sdks/python/
-            </pre>
+        {/* ── Section E: SHA-256 Audit Ledger ── */}
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Hash size={18} color="var(--accent-light)" />
+              <span className="card-title">Cryptographic SHA-256 Hash-Chained Audit Ledger</span>
+            </div>
+            <Badge variant="accent">IMMUTABLE AUDIT TRAIL</Badge>
           </div>
 
-          <div className="bg-black/60 p-4 rounded-lg border border-white/5">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Quickstart Initialization</h3>
-            <pre className="text-xs text-gray-300 font-mono overflow-x-auto">
-{`from aegisnexus_sdk import AegisNexusClient
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20, fontSize: '0.8125rem' }}>
+            <div style={{ background: 'var(--bg-elevated)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                Digest Algorithm
+              </div>
+              <div style={{ color: 'var(--accent-light)', fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>
+                SHA-256 (FIPS 180-4 compliant)
+              </div>
+              <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                Every remediation lifecycle action computes a SHA-256 digest over the canonical event payload combined with the preceding event's hash.
+              </p>
+            </div>
 
-client = AegisNexusClient(
-    base_url="http://localhost:8000",
-    agent_id="YOUR_AGENT_UUID",
-    api_key="YOUR_PLAINTEXT_SECRET",
-    fail_open=True,
-)`}
-            </pre>
+            <div style={{ background: 'var(--bg-elevated)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                Hash-Chain Linking Architecture
+              </div>
+              <div style={{ color: 'var(--low)', fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>
+                Sequential previous_hash pointer
+              </div>
+              <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                Events form a cryptographically linked chronological chain. Altering historical entries or metadata invalidates downstream hashes.
+              </p>
+            </div>
+
+            <div style={{ background: 'var(--bg-elevated)', padding: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border-default)' }}>
+              <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+                Tamper Detection Verification
+              </div>
+              <div style={{ color: 'var(--text-primary)', fontFamily: 'var(--font-mono)', fontSize: '0.875rem' }}>
+                O(N) Full-Chain Deterministic Retest
+              </div>
+              <p style={{ margin: '8px 0 0', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                Live validation is available per-ledger via the <code>/verify-chain</code> endpoint, certifying complete chain integrity without Merkle tree inflation.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Section F: Python SDK Integration ── */}
+        <div className="card" style={{ gridColumn: '1 / -1' }}>
+          <div className="card-header">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Terminal size={18} color="var(--accent-light)" />
+              <span className="card-title">External Agent Python SDK Integration</span>
+            </div>
+            <button
+              onClick={handleCopyCode}
+              className="btn btn-secondary btn-sm"
+              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+            >
+              {copiedCode ? <Check size={14} color="var(--low)" /> : <Copy size={14} />}
+              {copiedCode ? 'Copied Code' : 'Copy Integration Snippet'}
+            </button>
+          </div>
+
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+            Connect any standalone AI agent (LangChain, CrewAI, AutoGen, or custom) to AegisNexus using the verified local package.
+          </p>
+
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+              Installation (From Local Monorepo)
+            </div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                background: '#040612',
+                border: '1px solid var(--border-default)',
+                borderRadius: 'var(--radius-md)',
+                padding: '8px 12px',
+                fontFamily: 'var(--font-mono)',
+                fontSize: '0.8125rem',
+                color: 'var(--accent-light)',
+              }}
+            >
+              <code>{installCommand}</code>
+              <button
+                onClick={handleCopyInstall}
+                className="link-btn"
+                title="Copy installation command"
+              >
+                {copiedInstall ? <Check size={14} color="var(--low)" /> : <Copy size={14} />}
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+              Minimal Verified Integration Code
+            </div>
+            <div className="code-block" style={{ maxHeight: 360, overflowY: 'auto' }}>
+              <pre style={{ margin: 0 }}>{pythonExampleCode}</pre>
+            </div>
           </div>
         </div>
       </div>

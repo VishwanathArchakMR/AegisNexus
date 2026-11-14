@@ -4,11 +4,12 @@ import { useNavigate } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, Lock, Search, Filter, Plus, Activity } from 'lucide-react'
 import { api } from '../../lib/api'
 import { PageHeader } from '../../components/layout/PageHeader'
-import { TrustBadge, StatusBadge } from '../../components/ui/Badge'
+import { TrustBadge, StatusBadge, Badge } from '../../components/ui/Badge'
+import { ConnectionStatusPill } from '../../components/ui/ConnectionStatusPill'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { EmptyState } from '../../components/ui/EmptyState'
 import { OnboardWizardModal } from './OnboardWizardModal'
-import type { AgentSummary, AgentListParams, ConnectionStatus } from '../../types'
+import type { AgentSummary, AgentListParams } from '../../types'
 
 const AGENT_TYPE_LABELS: Record<string, string> = {
   customer_support: 'Customer Support',
@@ -27,47 +28,6 @@ function formatLastSeen(dateStr: string | null, isOffline: boolean): string {
   if (seconds < 60) return `${Math.max(0, seconds)}s ago`
   const minutes = Math.floor(seconds / 60)
   return `${minutes}m ago`
-}
-
-function ConnectionStatusPill({ status }: { status?: ConnectionStatus }) {
-  if (!status) return null
-
-  const config = {
-    ONLINE: { color: 'var(--low)', bg: 'var(--low-dim)', label: 'ONLINE', dot: true },
-    STALE: { color: 'var(--medium)', bg: 'var(--medium-dim)', label: 'STALE', dot: true },
-    OFFLINE: { color: 'var(--text-muted)', bg: 'var(--bg-elevated)', label: 'OFFLINE', dot: false },
-    NEVER_CONNECTED: { color: 'var(--text-muted)', bg: 'var(--bg-elevated)', label: 'NOT CONNECTED', dot: false },
-  }[status] || { color: 'var(--text-muted)', bg: 'var(--bg-elevated)', label: status, dot: false }
-
-  return (
-    <span
-      style={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 5,
-        padding: '2px 7px',
-        borderRadius: 4,
-        fontSize: '0.6875rem',
-        fontWeight: 600,
-        backgroundColor: config.bg,
-        color: config.color,
-        border: `1px solid ${config.color}33`,
-      }}
-    >
-      {config.dot && (
-        <span
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            backgroundColor: config.color,
-            display: 'inline-block',
-          }}
-        />
-      )}
-      {config.label}
-    </span>
-  )
 }
 
 export default function AgentsPage() {
@@ -236,6 +196,7 @@ export default function AgentsPage() {
                   <th>Environment</th>
                   <th>Type</th>
                   <th>Admin Status</th>
+                  <th>Credential Status</th>
                   <th>Trust Level</th>
                   <th>Owner Team</th>
                   <th>Capabilities</th>
@@ -305,6 +266,21 @@ export default function AgentsPage() {
                       </span>
                     </td>
                     <td><StatusBadge status={agent.status} /></td>
+                    <td>
+                      <Badge
+                        variant={
+                          agent.api_key_status === 'ACTIVE'
+                            ? 'low'
+                            : agent.api_key_status === 'ROTATED'
+                            ? 'medium'
+                            : agent.api_key_status === 'REVOKED'
+                            ? 'critical'
+                            : 'neutral'
+                        }
+                      >
+                        {agent.api_key_status || 'SEEDED'}
+                      </Badge>
+                    </td>
                     <td><TrustBadge level={agent.trust_level} /></td>
                     <td style={{ color: 'var(--text-secondary)' }}>{agent.owner_team}</td>
                     <td>

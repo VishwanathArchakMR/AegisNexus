@@ -1,23 +1,72 @@
 import { ArrowRight } from 'lucide-react'
+import type { DashboardSummary, RecoverySummary, ComplianceSummary } from '../../../types'
 
-interface PipelineStage {
-  label: string
-  key: string
-  active: boolean
-  status: string
-  color: string
+interface PipelineBarProps {
+  summary?: DashboardSummary
+  recoverySummary?: RecoverySummary
+  complianceSummary?: ComplianceSummary
 }
 
-const STAGES: PipelineStage[] = [
-  { label: 'Discover', key: 'discover', active: true,  status: 'Active', color: 'var(--low)' },
-  { label: 'Blast Radius', key: 'blast',  active: true, status: 'Active', color: 'var(--accent)' },
-  { label: 'Adversarial Test', key: 'attack', active: true, status: 'Active', color: 'var(--high)' },
-  { label: 'Risk & Findings',  key: 'risk',  active: true, status: 'Active', color: 'var(--medium)' },
-  { label: 'Compliance', key: 'compliance', active: true, status: 'Active', color: 'var(--info)' },
-  { label: 'Recovery', key: 'recovery', active: false, status: 'Pending', color: 'var(--critical)' },
-]
+export function PipelineBar({ summary, recoverySummary, complianceSummary }: PipelineBarProps) {
+  // Dynamically compute stages based on actual database records
+  const totalAgents = summary?.total_agents ?? 0
+  const totalRelationships = summary?.total_relationships ?? 0
+  const completedSimulations = summary?.completed_simulations ?? 0
+  const openFindings = summary?.open_findings ?? 0
+  const totalAssessments = complianceSummary?.total_assessments ?? 0
+  const recoveredCount = recoverySummary?.recovered ?? 0
+  const totalRecoveryRecords = recoverySummary?.total_recovery_records ?? 0
 
-export function PipelineBar() {
+  const stages = [
+    {
+      label: 'Discover',
+      key: 'discover',
+      active: totalAgents > 0,
+      status: totalAgents > 0 ? `${totalAgents} Agents` : 'Pending',
+      color: totalAgents > 0 ? 'var(--low)' : 'var(--text-muted)',
+    },
+    {
+      label: 'Blast Radius',
+      key: 'blast',
+      active: totalRelationships > 0,
+      status: totalRelationships > 0 ? `${totalRelationships} Links` : 'Pending',
+      color: totalRelationships > 0 ? 'var(--accent)' : 'var(--text-muted)',
+    },
+    {
+      label: 'Adversarial Test',
+      key: 'attack',
+      active: completedSimulations > 0,
+      status: completedSimulations > 0 ? `${completedSimulations} Tested` : 'Pending',
+      color: completedSimulations > 0 ? 'var(--high)' : 'var(--text-muted)',
+    },
+    {
+      label: 'Risk & Findings',
+      key: 'risk',
+      active: openFindings > 0 || completedSimulations > 0,
+      status: openFindings > 0 ? `${openFindings} Open` : '0 Open',
+      color: openFindings > 0 ? 'var(--critical)' : 'var(--low)',
+    },
+    {
+      label: 'Compliance',
+      key: 'compliance',
+      active: totalAssessments > 0,
+      status: totalAssessments > 0 ? `${totalAssessments} Audited` : 'Active',
+      color: 'var(--info)',
+    },
+    {
+      label: 'Recovery',
+      key: 'recovery',
+      active: totalRecoveryRecords > 0,
+      status:
+        recoveredCount > 0
+          ? `${recoveredCount} Recovered`
+          : totalRecoveryRecords > 0
+          ? `${totalRecoveryRecords} In Progress`
+          : 'Pending',
+      color: recoveredCount > 0 ? 'var(--low)' : totalRecoveryRecords > 0 ? 'var(--high)' : 'var(--text-muted)',
+    },
+  ]
+
   return (
     <div>
       <div
@@ -30,10 +79,10 @@ export function PipelineBar() {
           marginBottom: 'var(--space-3)',
         }}
       >
-        Security Pipeline
+        Continuous Security & Recovery Pipeline
       </div>
       <div className="pipeline-bar">
-        {STAGES.map((stage, i) => (
+        {stages.map((stage, i) => (
           <div key={stage.key} className="pipeline-stage">
             <div
               className={`pipeline-stage-content${stage.active ? ' active' : ''}`}
@@ -49,10 +98,11 @@ export function PipelineBar() {
                 className="pipeline-stage-status"
                 style={{ color: stage.active ? stage.color : undefined }}
               >
-                {stage.active ? '● ' : '○ '}{stage.status}
+                {stage.active ? '● ' : '○ '}
+                {stage.status}
               </span>
             </div>
-            {i < STAGES.length - 1 && (
+            {i < stages.length - 1 && (
               <span className="pipeline-arrow">
                 <ArrowRight size={12} color="var(--text-muted)" />
               </span>
